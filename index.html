@@ -161,8 +161,14 @@
       };
 
       const archiveIng = async id => {
-        if (!window.confirm("Archive this ingredient?")) return;
+        if (!window.confirm("Archive this ingredient? You can restore it later.")) return;
         await db.patch("ingredients",id,{is_active:false});
+        await loadAll(); setIngF(null);
+      };
+
+      const deleteIng = async id => {
+        if (!window.confirm("Permanently delete this ingredient? This cannot be undone.")) return;
+        await db.del("ingredients", id);
         await loadAll(); setIngF(null);
       };
 
@@ -294,9 +300,13 @@
                 <div style={S.drwH}>
                   <span>{ingF.mode==="add"?"New Ingredient":"Edit Ingredient"}</span>
                   {ingF.mode==="edit" && (
-                    ingF.data.is_active
-                      ? <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>
-                      : <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.green,borderColor:C.green}} onClick={()=>unarchiveIng(ingF.data.id)}>Restore</button>
+                    <div style={{display:"flex",gap:"0.5rem"}}>
+                      {ingF.data.is_active
+                        ? <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>
+                        : <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.green,borderColor:C.green}} onClick={()=>unarchiveIng(ingF.data.id)}>Restore</button>
+                      }
+                      <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red,background:"rgba(155,42,42,0.08)"}} onClick={()=>deleteIng(ingF.data.id)}>Delete</button>
+                    </div>
                   )}
                 </div>
                 <Field label="Ingredient Name *"><Inp val={ingF.data.name} set={v=>setIngF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Alphonso Mango (raw)"/></Field>
