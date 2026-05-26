@@ -1,17 +1,15 @@
 {
   "name": "Etto Production",
   "short_name": "Etto",
-  "description": "Etto Gelato — Production Management System",
   "start_url": "/etto-app/",
   "display": "standalone",
   "background_color": "#F5EDD8",
   "theme_color": "#2C1A06",
-  "orientation": "portrait",
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
