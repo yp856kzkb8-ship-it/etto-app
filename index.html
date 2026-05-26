@@ -59,8 +59,12 @@ const E_RI={ingredient_id:"",processed_qty_base:"",notes:""};
 const E_ST={title:"",instruction:"",timer_min:"0",timer_sec:"0",requires_weight_check:false,requires_photo:false};
 
 // Helpers
-const mixWt=(o,p)=>(parseFloat(o)||0)/(1+(parseFloat(p)||0)/100);
+// Mix weight IS the base — overrun only affects volume/cups, not mass
+const finishedVol=(mixG,overrunPct)=>(parseFloat(mixG)||0)*(1+(parseFloat(overrunPct)||0)/100);
+const cupsFromMix=(mixG,overrunPct,cupMl)=>Math.floor(finishedVol(mixG,overrunPct)/(parseFloat(cupMl)||125));
 const rawQty=(pq,yp)=>(parseFloat(pq)||0)/((parseFloat(yp)||100)/100);
+// kept for legacy references
+const mixWt=(o,p)=>parseFloat(o)||0;
 const cups=(o,c)=>Math.floor((parseFloat(o)||0)/(parseFloat(c)||125));
 const toSecs=(m,s)=>parseInt(m||0)*60+parseInt(s||0);
 const fromSec=s=>({min:Math.floor(s/60),sec:s%60});
@@ -262,8 +266,7 @@ function App(){
       ]);
       const recipe=(Array.isArray(rec)?rec:[])[0];
       setSelBatchRec(recipe||null);
-      const mixNeeded=batch.target_output_g/(1+(recipe?.overrun_pct||25)/100);
-      const mult=mixNeeded/(recipe?.base_mix_g||800);
+      const mult=batch.target_output_g/(recipe?.base_output_g||1000);
       const scaled=(Array.isArray(ri)?ri:[]).map(item=>({
         ...item,
         scaled_processed:item.processed_qty_base*mult,
@@ -288,20 +291,13 @@ function App(){
     setSaving(true);setErr(null);
     try{
       const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
-      const targetG=parseFloat(newBatchF.target_kg)*1000;
+      const batchG=parseFloat(newBatchF.target_kg)*1000;
       const batchNo=genBNo(rec.name,batches.length);
-      const d={
-        batch_number:batchNo,
-        recipe_id:newBatchF.recipe_id,
-        target_output_g:targetG,
-        status:"pending",
-      };
+      const d={batch_number:batchNo,recipe_id:newBatchF.recipe_id,target_output_g:batchG,status:"pending"};
       const created=await db.post("production_batches",d);
       const batch=Array.isArray(created)?created[0]:created;
-      // Create weight checks for yield-adjusted ingredients
       const ri=await db.get("recipe_ingredients",`?recipe_id=eq.${newBatchF.recipe_id}&select=id,processed_qty_base,ingredient_id,ingredients(id,yield_pct,unit)&order=sort_order`);
-      const mixNeeded=targetG/(1+(rec.overrun_pct||25)/100);
-      const mult=mixNeeded/(rec.base_mix_g||800);
+      const mult=batchG/(rec.base_output_g||1000);
       for(const item of (Array.isArray(ri)?ri:[])){
         const yp=item.ingredients?.yield_pct||100;
         if(parseFloat(yp)<100){
@@ -376,11 +372,10 @@ function App(){
     setSaving(true);setErr(null);
     try{
       const actualG=parseFloat(confirmWt)*1000;
-      const mixUsed=selBatch.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100);
-      const actualOverrun=((actualG-mixUsed)/mixUsed)*100;
+      const actualVol=finishedVol(actualG,selBatchRec?.overrun_pct||0);
+      const actualCups=cupsFromMix(actualG,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125);
       await db.patch("production_batches",selBatch.id,{
         status:"completed",actual_output_g:actualG,
-        actual_overrun_pct:parseFloat(actualOverrun.toFixed(2)),
         confirmed_at:new Date().toISOString(),
       });
       // Attempt FIFO inventory deduction
@@ -604,10 +599,10 @@ function App(){
                         </div>
                         {rec.description&&<div style={{...S.rCM,marginBottom:"0.5rem"}}>{rec.description}</div>}
                         <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
-                          <span style={S.rCM}>Output: {rec.base_output_g}g</span>
+                          <span style={S.rCM}>Mix: {rec.base_output_g}g</span>
+                          <span style={S.rCM}>Volume: {finishedVol(rec.base_output_g,rec.overrun_pct).toFixed(0)}ml</span>
                           <span style={S.rCM}>Overrun: {rec.overrun_pct}%</span>
-                          <span style={S.rCM}>Mix: {mixWt(rec.base_output_g,rec.overrun_pct).toFixed(0)}g</span>
-                          <span style={S.rCM}>Cups: {cups(rec.base_output_g,rec.cup_size_ml)}</span>
+                          <span style={S.rCM}>Cups: {cupsFromMix(rec.base_output_g,rec.overrun_pct,rec.cup_size_ml)}</span>
                         </div>
                       </div>
                     ))}
@@ -634,7 +629,13 @@ function App(){
                   </div>
                   {selRec.description&&<div style={{fontSize:12,color:C.k,fontStyle:"italic",marginBottom:"0.75rem"}}>{selRec.description}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem 2rem"}}>
-                    {[["Target Output",`${selRec.base_output_g}g`],["Overrun",`${selRec.overrun_pct}%`],["Mix Needed",`${mixWt(selRec.base_output_g,selRec.overrun_pct).toFixed(1)}g`],["Cup Size",`${selRec.cup_size_ml}ml`],["Cups/Batch",`${cups(selRec.base_output_g,selRec.cup_size_ml)}`]].map(([l,v])=>(
+                    {[
+                      ["Base Mix Weight",`${selRec.base_output_g}g`],
+                      ["Overrun (texture)",`${selRec.overrun_pct}%`],
+                      ["Finished Volume",`${finishedVol(selRec.base_output_g,selRec.overrun_pct).toFixed(0)}ml`],
+                      ["Cup Size",`${selRec.cup_size_ml}ml`],
+                      ["Cups per Batch",`${cupsFromMix(selRec.base_output_g,selRec.overrun_pct,selRec.cup_size_ml)}`],
+                    ].map(([l,v])=>(
                       <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:2}}>{v}</div></div>
                     ))}
                   </div>
@@ -759,9 +760,9 @@ function App(){
                   {selBatchRec&&<div style={{fontSize:12,color:C.k,fontStyle:"italic",marginBottom:"0.75rem"}}>{selBatchRec.name}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem 2rem"}}>
                     {[
-                      ["Target Output",fmt(selBatch.target_output_g,'g')],
-                      ["Mix to Prepare",fmt(selBatch.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100),'g')],
-                      ["Cups Expected",`${cups(selBatch.target_output_g,selBatchRec?.cup_size_ml||125)}`],
+                      ["Mix to Prepare",fmt(selBatch.target_output_g,'g')],
+                      ["Finished Volume",`${finishedVol(selBatch.target_output_g,selBatchRec?.overrun_pct||0).toFixed(0)}ml`],
+                      ["Cups Expected",`${cupsFromMix(selBatch.target_output_g,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125)}`],
                       ["Steps Progress",`${stepLogs.length} / ${prodSteps.length}`],
                     ].map(([l,v])=>(
                       <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:2}}>{v}</div></div>
@@ -888,9 +889,9 @@ function App(){
                       </Field>
                       {confirmWt&&parseFloat(confirmWt)>0&&(
                         <div style={{...S.info,marginBottom:"1rem"}}>
-                          Actual output: <strong>{(parseFloat(confirmWt)*1000).toFixed(0)}g</strong>
-                          {selBatchRec&&` · Overrun: ${(((parseFloat(confirmWt)*1000)-selBatch.target_output_g/(1+(selBatchRec.overrun_pct||25)/100))/(selBatch.target_output_g/(1+(selBatchRec.overrun_pct||25)/100))*100).toFixed(1)}%`}
-                          {` · Cups: ${cups(parseFloat(confirmWt)*1000,selBatchRec?.cup_size_ml||125)}`}
+                          Mix used: <strong>{(parseFloat(confirmWt)*1000).toFixed(0)}g</strong>
+                          {selBatchRec&&` · Finished volume: ${finishedVol(parseFloat(confirmWt)*1000,selBatchRec.overrun_pct).toFixed(0)}ml`}
+                          {selBatchRec&&` · Cups: ${cupsFromMix(parseFloat(confirmWt)*1000,selBatchRec.overrun_pct,selBatchRec.cup_size_ml)}`}
                         </div>
                       )}
                       <button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:14,padding:"13px"}} onClick={confirmBatch} disabled={saving||!confirmWt}>
@@ -1072,15 +1073,25 @@ function App(){
           {newBatchF.recipe_id&&newBatchF.target_kg&&(()=>{
             const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
             if(!rec)return null;
-            const targetG=parseFloat(newBatchF.target_kg)*1000;
-            const mixNeeded=targetG/(1+(rec.overrun_pct||25)/100);
-            const mult=mixNeeded/(rec.base_mix_g||800);
+            const batchG=parseFloat(newBatchF.target_kg)*1000;
+            const mult=batchG/(rec.base_output_g||1000);
+            const batchVol=finishedVol(batchG,rec.overrun_pct);
+            const totalCups=cupsFromMix(batchG,rec.overrun_pct,rec.cup_size_ml);
             return(
               <div style={S.info}>
-                Target: <strong style={{color:C.ink}}>{fmt(targetG,'g')}</strong> finished gelato<br/>
-                Mix to prepare: <strong style={{color:C.ink}}>{fmt(mixNeeded,'g')}</strong><br/>
-                Scale factor: <strong style={{color:C.ink}}>×{mult.toFixed(2)}</strong> of base recipe<br/>
-                Cups expected: <strong style={{color:C.ink}}>{cups(targetG,rec.cup_size_ml)}</strong> × {rec.cup_size_ml}ml
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem 1.5rem"}}>
+                  {[
+                    ["Mix to prepare",`${batchG.toFixed(0)}g`],
+                    ["Finished volume",`${batchVol.toFixed(0)}ml`],
+                    ["Scale factor",`×${mult.toFixed(2)} of base`],
+                    ["Total cups",`${totalCups} × ${rec.cup_size_ml}ml`],
+                  ].map(([l,v])=>(
+                    <div key={l}>
+                      <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>{l}</div>
+                      <div style={{fontSize:15,color:C.ink,fontWeight:600,marginTop:1}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })()}
