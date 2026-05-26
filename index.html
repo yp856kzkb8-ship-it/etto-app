@@ -138,7 +138,7 @@ const S={
 };
 
 const Field=({label,children})=><div style={S.fg}><label style={S.lbl}>{label}</label>{children}</div>;
-const Inp=({val,set,...p})=><input style={S.inp} value={val} onChange={e=>set(e.target.value)} {...p}/>;
+const Inp=({val,set,...p})=><input style={S.inp} value={val} onChange={e=>set(e.target.value)} onFocus={e=>{if(e.target.value==="0")set("");}} {...p}/>;
 const SelEl=({val,set,opts,labels})=><select style={S.sel} value={val} onChange={e=>set(e.target.value)}>{opts.map((o,i)=><option key={o} value={o}>{labels?labels[i]:o}</option>)}</select>;
 const Toggle=({val,set,label})=>(
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0.5rem 0"}}>
@@ -375,10 +375,11 @@ function App(){
       const actualVol=finishedVol(actualG,selBatchRec?.overrun_pct||0);
       const actualCups=cupsFromMix(actualG,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125);
       await db.patch("production_batches",selBatch.id,{
-        status:"completed",actual_output_g:actualG,
+        status:"completed",
+        actual_output_g:actualG,
         confirmed_at:new Date().toISOString(),
       });
-      // Attempt FIFO inventory deduction
+      // Inventory deduction uses scaled recipe quantities — not finished weight
       for(const ing of scaledIngs){
         try{
           const stockBatches=await db.get("ingredient_batches",`?ingredient_id=eq.${ing.ingredient_id}&qty_remaining=gt.0&order=received_at`);
@@ -397,6 +398,18 @@ function App(){
           }
         }catch(e2){/* inventory not yet loaded - graceful */}
       }
+      // Store batch cost record with actual cups
+      try{
+        await db.post("batch_costs",{
+          batch_id:selBatch.id,
+          raw_material_cost:0, // updated in Module 4 when stock prices are entered
+          overhead_cost:0,
+          total_batch_cost:0,
+          cups_yielded:actualCups,
+          cup_size_ml:selBatchRec?.cup_size_ml||125,
+          cost_per_cup:0,
+        });
+      }catch(e2){/* batch_costs record optional at this stage */}
       await loadBatches();
       setBatchView("list");setSelBatch(null);setShowConfirm(false);setConfirmWt("");
     }catch(e){setErr("Confirm failed: "+e.message);}
@@ -885,15 +898,28 @@ function App(){
                     <div style={{background:`${C.green}08`,border:`1.5px solid ${C.green}`,borderRadius:2,padding:"1.25rem",marginTop:"1rem"}}>
                       <div style={{fontFamily:"Georgia,serif",fontSize:16,color:C.green,marginBottom:"0.75rem"}}>✓ All Steps Complete — Confirm Batch</div>
                       <Field label="Actual finished gelato weight (kg)">
-                        <Inp val={confirmWt} set={setConfirmWt} type="number" min="0" step="0.01" placeholder="e.g. 3.12"/>
+                        <Inp val={confirmWt} set={setConfirmWt} type="number" min="0" step="0.01" placeholder={`Target: ${(selBatch?.target_output_g/1000).toFixed(1)}kg`}/>
                       </Field>
-                      {confirmWt&&parseFloat(confirmWt)>0&&(
-                        <div style={{...S.info,marginBottom:"1rem"}}>
-                          Mix used: <strong>{(parseFloat(confirmWt)*1000).toFixed(0)}g</strong>
-                          {selBatchRec&&` · Finished volume: ${finishedVol(parseFloat(confirmWt)*1000,selBatchRec.overrun_pct).toFixed(0)}ml`}
-                          {selBatchRec&&` · Cups: ${cupsFromMix(parseFloat(confirmWt)*1000,selBatchRec.overrun_pct,selBatchRec.cup_size_ml)}`}
-                        </div>
-                      )}
+                      {confirmWt&&parseFloat(confirmWt)>0&&(()=>{
+                        const finWtG=parseFloat(confirmWt)*1000;
+                        const finVol=finishedVol(finWtG,selBatchRec?.overrun_pct||0);
+                        const finCups=cupsFromMix(finWtG,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125);
+                        return(
+                          <div style={{...S.info,marginBottom:"1rem"}}>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem 1.5rem"}}>
+                              {[
+                                ["Finished volume",`${finVol.toFixed(0)}ml`],
+                                ["Cups produced",`${finCups}`],
+                              ].map(([l,v])=>(
+                                <div key={l}>
+                                  <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>{l}</div>
+                                  <div style={{fontSize:18,color:C.ink,fontWeight:700,marginTop:1}}>{v}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:14,padding:"13px"}} onClick={confirmBatch} disabled={saving||!confirmWt}>
                         {saving?"Confirming…":"Confirm Batch Complete — Deduct Inventory"}
                       </button>
