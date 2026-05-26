@@ -119,6 +119,7 @@
       const [err,    setErr]    = useState(null);
       const [search, setSrch]   = useState("");
       const [cat,    setCat]    = useState("all");
+      const [showArch, setShowArch] = useState(false);
       const [ingF,   setIngF]   = useState(null);
       const [supF,   setSupF]   = useState(null);
       const [saving, setSaving] = useState(false);
@@ -127,7 +128,7 @@
         setLoad(true);
         try {
           const [i,s] = await Promise.all([
-            db.get("ingredients","&is_active=eq.true"),
+            db.get("ingredients"),
             db.get("suppliers","&is_active=eq.true"),
           ]);
           setIngs(i); setSups(s); setErr(null);
@@ -139,8 +140,14 @@
 
       const filtered = ings.filter(i =>
         i.name.toLowerCase().includes(search.toLowerCase()) &&
-        (cat==="all" || i.category===cat)
+        (cat==="all" || i.category===cat) &&
+        (showArch ? !i.is_active : i.is_active)
       );
+
+      const unarchiveIng = async id => {
+        await db.patch("ingredients", id, { is_active:true });
+        await loadAll(); setIngF(null);
+      };
 
       const saveIng = async () => {
         if (!ingF.data.name.trim()) return;
@@ -209,7 +216,10 @@
                   <div style={S.sC}><div style={{...S.sN,color:C.k}}>{ings.filter(i=>parseFloat(i.yield_pct)<100).length}</div><div style={S.sL}>Yield-adjusted</div></div>
                 </div>
 
-                <input style={S.srch} placeholder="Search ingredients…" value={search} onChange={e=>setSrch(e.target.value)}/>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+                  <input style={{...S.srch,marginBottom:0,flex:1,marginRight:"1rem"}} placeholder="Search ingredients…" value={search} onChange={e=>setSrch(e.target.value)}/>
+                  <button style={S.pill(showArch)} onClick={()=>setShowArch(a=>!a)}>{showArch?"Archived":"Active"}</button>
+                </div>
 
                 <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"1.25rem"}}>
                   {["all",...CATS].map(c=>(
@@ -283,7 +293,11 @@
               <div style={S.drw}>
                 <div style={S.drwH}>
                   <span>{ingF.mode==="add"?"New Ingredient":"Edit Ingredient"}</span>
-                  {ingF.mode==="edit" && <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>}
+                  {ingF.mode==="edit" && (
+                    ingF.data.is_active
+                      ? <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>
+                      : <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.green,borderColor:C.green}} onClick={()=>unarchiveIng(ingF.data.id)}>Restore</button>
+                  )}
                 </div>
                 <Field label="Ingredient Name *"><Inp val={ingF.data.name} set={v=>setIngF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Alphonso Mango (raw)"/></Field>
                 <div style={S.gr}>
