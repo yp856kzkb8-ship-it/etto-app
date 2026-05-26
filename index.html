@@ -23,21 +23,1110 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect } = React;
 
 const C = {
-  ink:"#2C1A06", inkM:"#5C3D1A", inkL:"#9B7440",
-  k:"#C8A96E", kD:"#8B6914", kL:"#F5EDD8", kP:"#FAF5E9",
-  cream:"#FDF8ED", bd:"rgba(200,169,110,0.35)",
-  green:"#3A7A4A", orange:"#CC6600", red:"#9B2A2A", blue:"#2A5A9B"
+  ink:"#2C1A06",inkM:"#5C3D1A",inkL:"#9B7440",
+  k:"#C8A96E",kD:"#8B6914",kL:"#F5EDD8",kP:"#FAF5E9",
+  cream:"#FDF8ED",bd:"rgba(200,169,110,0.35)",
+  green:"#3A7A4A",orange:"#CC6600",red:"#9B2A2A",blue:"#2A5A9B"
 };
 
 const SB  = "https://bdnwpasbpvoxmffwzjeu.supabase.co";
 const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbndwYXNicHZveG1mZnd6amV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzU0MDUsImV4cCI6MjA5NTM1MTQwNX0.1anxClT_BMO8FdzDxfWX1OiJV7qmcgWD_k1aTQ7LkXg";
-const GH  = { apikey:KEY, Authorization:`Bearer ${KEY}` };
-const MH  = { ...GH, "Content-Type":"application/json", Prefer:"return=representation" };
+const GH  = {apikey:KEY,Authorization:`Bearer ${KEY}`};
+const MH  = {...GH,"Content-Type":"application/json",Prefer:"return=representation"};
 
 const db = {
-  get: async (t,q="") => { const r=await fetch(`${SB}/rest/v1/${t}${q}`,{headers:GH}); const d=await r.json(); if(!r.ok) throw new Error(d.message||r.status); return d; },
-  post: async (t,d) => { const r=await fetch(`${SB}/rest/v1/${t}`,{method:"POST",headers:MH,body:JSON.stringify(d)}); const data=await r.json(); if(!r.ok) throw new Error(data.message||r.status); return data; },
-  patch: async (t,id,d) => { const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"PATCH",headers:M
+  get: async(t,q="")=>{const r=await fetch(`${SB}/rest/v1/${t}${q}`,{headers:GH});const d=await r.json();if(!r.ok)throw new Error(d.message||r.status);return d;},
+  post: async(t,d)=>{const r=await fetch(`${SB}/rest/v1/${t}`,{method:"POST",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
+  patch: async(t,id,d)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"PATCH",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
+  del: async(t,id)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"DELETE",headers:GH});if(!r.ok)throw new Error(r.status);},
+};
+
+const CATS=["dairy","fruit","sugar","stabiliser","flavour","oil","salt","other"];
+const UNITS=["g","ml","unit"];
+const CAT_C={dairy:"#4A7A9B",fruit:"#CC6600",sugar:"#9B4A9B",stabiliser:"#3A7A4A",flavour:"#9B4A4A",oil:"#8B7A2A",salt:"#6E7A8B",other:"#7A7A7A"};
+const STS_C={draft:"#7A7A7A",trial:"#CC6600",locked:"#3A7A4A"};
+const STS_L={draft:"Draft",trial:"In Trial",locked:"Locked ✓"};
+const BSTS_C={pending:"#2A5A9B",in_progress:"#CC6600",completed:"#3A7A4A",voided:"#9B2A2A"};
+const BSTS_L={pending:"Pending",in_progress:"In Progress",completed:"Completed ✓",voided:"Voided"};
+
+const E_ING={name:"",category:"dairy",unit:"g",yield_pct:"100",reorder_threshold:"0",notes:""};
+const E_SUP={name:"",contact_name:"",phone:"",email:"",address:"",notes:""};
+const E_REC={name:"",description:"",base_output_g:"1000",overrun_pct:"25",cup_size_ml:"125",status:"draft",notes:""};
+const E_RI={ingredient_id:"",processed_qty_base:"",notes:""};
+const E_ST={title:"",instruction:"",timer_min:"0",timer_sec:"0",requires_weight_check:false,requires_photo:false};
+
+// Helpers
+const mixWt=(o,p)=>(parseFloat(o)||0)/(1+(parseFloat(p)||0)/100);
+const rawQty=(pq,yp)=>(parseFloat(pq)||0)/((parseFloat(yp)||100)/100);
+const cups=(o,c)=>Math.floor((parseFloat(o)||0)/(parseFloat(c)||125));
+const toSecs=(m,s)=>parseInt(m||0)*60+parseInt(s||0);
+const fromSec=s=>({min:Math.floor(s/60),sec:s%60});
+const fmt=(val,unit)=>{
+  const v=parseFloat(val)||0;
+  if(unit==='g'&&v>=1000)return `${(v/1000).toFixed(2)}kg`;
+  if(unit==='ml'&&v>=1000)return `${(v/1000).toFixed(2)}L`;
+  return `${v===Math.floor(v)?v:v.toFixed(1)}${unit}`;
+};
+const fmtT=s=>`${String(Math.floor((s||0)/60)).padStart(2,'0')}:${String((s||0)%60).padStart(2,'0')}`;
+const genBNo=(name,n)=>{
+  const p=name.replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase();
+  const d=new Date();
+  return `${p}-${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}-${String(n+1).padStart(3,'0')}`;
+};
+
+const S={
+  page:{background:C.cream,minHeight:"100vh",fontFamily:"Georgia,serif",color:C.ink,paddingBottom:76},
+  hdr:{background:C.ink,padding:"0.85rem 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`2px solid ${C.k}`},
+  hN:{fontSize:28,color:C.kL,letterSpacing:"0.35em",lineHeight:1},
+  hS:{fontSize:10,color:C.k,fontStyle:"italic"},
+  modNav:{position:"fixed",bottom:0,left:0,right:0,background:C.ink,display:"flex",borderTop:`2px solid ${C.k}`,zIndex:40},
+  modB:(a,s)=>({flex:1,padding:"0.55rem 0.2rem 0.45rem",background:"none",border:"none",borderTop:a?`2px solid ${C.k}`:"2px solid transparent",color:a?C.kL:s?"rgba(200,169,110,0.25)":C.inkL,fontSize:9,fontStyle:"italic",fontFamily:"Georgia,serif",cursor:s?"default":"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}),
+  subNav:{background:C.ink,display:"flex",borderBottom:`1px solid ${C.k}`},
+  subB:a=>({flex:1,padding:"0.65rem",background:"none",border:"none",borderBottom:a?`2px solid ${C.k}`:"2px solid transparent",color:a?C.kL:C.inkL,fontSize:12,fontStyle:"italic",fontFamily:"Georgia,serif",cursor:"pointer"}),
+  body:{padding:"1.25rem"},
+  srch:{flex:1,padding:"10px 12px",border:`1px solid ${C.bd}`,borderRadius:2,fontSize:14,fontFamily:"Georgia,serif",background:"white",color:C.ink,outline:"none"},
+  pill:a=>({padding:"4px 12px",borderRadius:20,fontSize:10,letterSpacing:"0.1em",textTransform:"uppercase",border:`0.5px solid ${a?C.k:C.bd}`,background:a?C.ink:"none",color:a?C.kL:C.inkL,cursor:"pointer",fontFamily:"Georgia,serif",whiteSpace:"nowrap"}),
+  tbl:{width:"100%",borderCollapse:"collapse"},
+  th:{background:C.ink,color:C.kL,padding:"8px 12px",textAlign:"left",fontSize:9,letterSpacing:"0.2em",textTransform:"uppercase",fontWeight:400},
+  td:{padding:"11px 12px",borderBottom:`0.5px solid ${C.bd}`,fontSize:13.5,color:C.inkM,verticalAlign:"middle"},
+  bdg:c=>({display:"inline-block",padding:"2px 8px",borderRadius:20,fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",background:`${CAT_C[c]||"#666"}18`,color:CAT_C[c]||"#666",border:`0.5px solid ${CAT_C[c]||"#666"}`}),
+  stsBdg:s=>({display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",background:`${STS_C[s]||"#666"}15`,color:STS_C[s]||"#666",border:`0.5px solid ${STS_C[s]||"#666"}`,whiteSpace:"nowrap"}),
+  bstsBdg:s=>({display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",background:`${BSTS_C[s]||"#666"}15`,color:BSTS_C[s]||"#666",border:`0.5px solid ${BSTS_C[s]||"#666"}`,whiteSpace:"nowrap"}),
+  fab:{position:"fixed",bottom:84,right:24,background:C.ink,color:C.kL,border:`2px solid ${C.k}`,borderRadius:"50%",width:56,height:56,fontSize:26,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 6px 24px rgba(0,0,0,0.4)",zIndex:50},
+  ovr:{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
+  drw:{background:C.cream,width:"100%",maxWidth:640,borderRadius:"16px 16px 0 0",padding:"1.75rem",maxHeight:"90vh",overflowY:"auto"},
+  drwH:{fontSize:18,color:C.ink,marginBottom:"1.25rem",paddingBottom:"0.75rem",borderBottom:`1px solid ${C.bd}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"0.5rem"},
+  lbl:{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,display:"block",marginBottom:4},
+  inp:{width:"100%",padding:"11px 12px",border:`1px solid ${C.bd}`,borderRadius:2,fontSize:14,fontFamily:"Georgia,serif",background:"white",color:C.ink,outline:"none",boxSizing:"border-box"},
+  txta:{width:"100%",padding:"11px 12px",border:`1px solid ${C.bd}`,borderRadius:2,fontSize:14,fontFamily:"Georgia,serif",background:"white",color:C.ink,outline:"none",boxSizing:"border-box",resize:"vertical",minHeight:80},
+  sel:{width:"100%",padding:"11px 12px",border:`1px solid ${C.bd}`,borderRadius:2,fontSize:14,fontFamily:"Georgia,serif",background:"white",color:C.ink},
+  fg:{marginBottom:"1rem"},
+  gr:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem"},
+  btn:{background:C.ink,color:C.kL,border:`1px solid ${C.k}`,padding:"11px 22px",borderRadius:2,fontSize:13,fontStyle:"italic",fontFamily:"Georgia,serif",cursor:"pointer"},
+  btnG:{background:"none",color:C.inkM,border:`0.5px solid ${C.bd}`,padding:"11px 22px",borderRadius:2,fontSize:13,fontFamily:"Georgia,serif",cursor:"pointer"},
+  btnSm:{background:"none",border:`0.5px solid ${C.bd}`,color:C.inkL,padding:"5px 11px",borderRadius:2,fontSize:11,fontFamily:"Georgia,serif",cursor:"pointer"},
+  btnGreen:{background:C.green,color:"white",border:`1px solid ${C.green}`,padding:"11px 22px",borderRadius:2,fontSize:13,fontStyle:"italic",fontFamily:"Georgia,serif",cursor:"pointer"},
+  sBar:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0.75rem",marginBottom:"1.25rem"},
+  sC:{background:C.ink,borderRadius:2,padding:"0.9rem",border:`0.5px solid ${C.k}`},
+  sN:{fontSize:26,color:C.kL,fontFamily:"Georgia,serif",lineHeight:1},
+  sL:{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase",marginTop:3},
+  rCard:{background:"white",border:`0.5px solid ${C.bd}`,borderRadius:2,padding:"1.1rem",marginBottom:"0.75rem",cursor:"pointer"},
+  rCN:{fontSize:17,fontFamily:"Georgia,serif",color:C.ink,marginBottom:"0.4rem"},
+  rCM:{fontSize:12,color:C.inkL,fontStyle:"italic"},
+  info:{background:C.kP,border:`0.5px solid ${C.k}`,borderRadius:2,padding:"0.75rem 1rem",marginBottom:"1rem",fontSize:13,color:C.inkM,fontStyle:"italic"},
+  err:{background:"rgba(155,42,42,0.08)",border:`0.5px solid ${C.red}`,borderRadius:2,padding:"0.75rem 1rem",marginBottom:"1rem",fontSize:13,color:C.red,fontStyle:"italic"},
+  note:{marginTop:"0.5rem",fontSize:11,color:C.inkL,fontStyle:"italic"},
+  backB:{background:"none",border:"none",color:C.k,fontSize:13,fontStyle:"italic",fontFamily:"Georgia,serif",cursor:"pointer",padding:"0.4rem 0",display:"flex",alignItems:"center",gap:4},
+  actB:{display:"flex",gap:"0.5rem",alignItems:"center"},
+  archB:{background:"none",border:`0.5px solid ${C.orange}`,color:C.orange,padding:"5px 11px",borderRadius:2,fontSize:11,fontFamily:"Georgia,serif",cursor:"pointer"},
+  restB:{background:"none",border:`0.5px solid ${C.green}`,color:C.green,padding:"5px 11px",borderRadius:2,fontSize:11,fontFamily:"Georgia,serif",cursor:"pointer"},
+  delB:{background:"rgba(155,42,42,0.08)",border:`0.5px solid ${C.red}`,color:C.red,padding:"5px 11px",borderRadius:2,fontSize:11,fontFamily:"Georgia,serif",cursor:"pointer"},
+  stepBox:{borderRadius:2,padding:"1rem",marginBottom:"0.75rem"},
+  stepN:{width:28,height:28,borderRadius:"50%",border:`1px solid ${C.k}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:C.k,fontFamily:"Georgia,serif",flexShrink:0},
+  stepNDone:{width:28,height:28,borderRadius:"50%",background:C.green,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"white",flexShrink:0},
+  tgl:on=>({width:44,height:24,borderRadius:12,background:on?C.green:"#ccc",position:"relative",cursor:"pointer",transition:"background 0.2s",border:"none",flexShrink:0}),
+  tglD:on=>({position:"absolute",width:18,height:18,borderRadius:"50%",background:"white",top:3,left:on?23:3,transition:"left 0.2s"}),
+  progBar:{height:5,background:C.kP,borderRadius:3,overflow:"hidden",margin:"0.5rem 0"},
+  wcChip:s=>({display:"inline-block",padding:"2px 8px",borderRadius:20,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",...(s==="met"?{background:`${C.green}15`,color:C.green,border:`0.5px solid ${C.green}`}:s==="short"?{background:`${C.red}15`,color:C.red,border:`0.5px solid ${C.red}`}:s==="surplus"?{background:`${C.blue}15`,color:C.blue,border:`0.5px solid ${C.blue}`}:{background:C.kP,color:C.inkL,border:`0.5px solid ${C.bd}`})}),
+};
+
+const Field=({label,children})=><div style={S.fg}><label style={S.lbl}>{label}</label>{children}</div>;
+const Inp=({val,set,...p})=><input style={S.inp} value={val} onChange={e=>set(e.target.value)} {...p}/>;
+const SelEl=({val,set,opts,labels})=><select style={S.sel} value={val} onChange={e=>set(e.target.value)}>{opts.map((o,i)=><option key={o} value={o}>{labels?labels[i]:o}</option>)}</select>;
+const Toggle=({val,set,label})=>(
+  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0.5rem 0"}}>
+    <span style={{fontSize:13,color:C.inkM}}>{label}</span>
+    <button style={S.tgl(val)} onClick={()=>set(!val)}><div style={S.tglD(val)}/></button>
+  </div>
+);
+
+function App(){
+  const [mod,setMod]=useState("ingredients");
+  const [ingTab,setIngTab]=useState("ingredienti");
+  const [recView,setRecView]=useState("list");
+  const [recTab,setRecTab]=useState("ingredients");
+  const [batchView,setBatchView]=useState("list");
+  const [batchTab,setBatchTab]=useState("pulllist");
+
+  // M1 data
+  const [ings,setIngs]=useState([]);
+  const [sups,setSups]=useState([]);
+  const [showArch,setShowArch]=useState(false);
+  const [search,setSrch]=useState("");
+  const [cat,setCat]=useState("all");
+
+  // M2 data
+  const [recipes,setRecipes]=useState([]);
+  const [selRec,setSelRec]=useState(null);
+  const [recIngs,setRecIngs]=useState([]);
+  const [recSteps,setRecSteps]=useState([]);
+  const [ingOpts,setIngOpts]=useState([]);
+
+  // M3 data
+  const [batches,setBatches]=useState([]);
+  const [selBatch,setSelBatch]=useState(null);
+  const [selBatchRec,setSelBatchRec]=useState(null);
+  const [scaledIngs,setScaledIngs]=useState([]);
+  const [prodSteps,setProdSteps]=useState([]);
+  const [stepLogs,setStepLogs]=useState([]);
+  const [wChecks,setWChecks]=useState([]);
+  const [timers,setTimers]=useState({});
+  const [confirmWt,setConfirmWt]=useState("");
+  const [showConfirm,setShowConfirm]=useState(false);
+
+  // Common
+  const [load,setLoad]=useState(true);
+  const [err,setErr]=useState(null);
+  const [saving,setSaving]=useState(false);
+
+  // Drawers
+  const [ingF,setIngF]=useState(null);
+  const [supF,setSupF]=useState(null);
+  const [recF,setRecF]=useState(null);
+  const [recIngF,setRecIngF]=useState(null);
+  const [stepF,setStepF]=useState(null);
+  const [newBatchF,setNewBatchF]=useState(null);
+  const [wCheckF,setWCheckF]=useState(null);
+
+  // Timer tick
+  useEffect(()=>{
+    const iv=setInterval(()=>{
+      setTimers(prev=>{
+        const next={...prev};let ch=false;
+        Object.entries(next).forEach(([id,t])=>{
+          if(t.running&&t.remaining>0){next[id]={...t,remaining:t.remaining-1};ch=true;}
+          else if(t.running&&t.remaining===0){next[id]={...t,running:false};ch=true;}
+        });
+        return ch?next:prev;
+      });
+    },1000);
+    return()=>clearInterval(iv);
+  },[]);
+
+  // Poll batches every 15s when on production tab
+  useEffect(()=>{
+    if(mod!=="production")return;
+    loadBatches();
+    const poll=setInterval(loadBatches,15000);
+    return()=>clearInterval(poll);
+  },[mod]);
+
+  const loadBase=async()=>{
+    setLoad(true);
+    try{
+      const[i,s,r,io]=await Promise.all([
+        db.get("ingredients","?order=name"),
+        db.get("suppliers","?order=name&is_active=eq.true"),
+        db.get("recipes","?order=name"),
+        db.get("ingredients","?order=name&is_active=eq.true&select=id,name,unit,yield_pct,category"),
+      ]);
+      setIngs(i);setSups(s);setRecipes(r);setIngOpts(io);setErr(null);
+    }catch(e){setErr("Database: "+e.message);}
+    setLoad(false);
+  };
+
+  useEffect(()=>{loadBase();},[]);
+
+  const loadRecDetail=async rec=>{
+    try{
+      const[ri,rs]=await Promise.all([
+        db.get("recipe_ingredients",`?recipe_id=eq.${rec.id}&select=id,processed_qty_base,notes,sort_order,ingredient_id,ingredients(id,name,unit,yield_pct,category)&order=sort_order`),
+        db.get("recipe_steps",`?recipe_id=eq.${rec.id}&order=step_number`),
+      ]);
+      setRecIngs(Array.isArray(ri)?ri:[]);
+      setRecSteps(Array.isArray(rs)?rs:[]);
+    }catch(e){setErr("Recipe load: "+e.message);}
+  };
+
+  const openRec=async rec=>{setSelRec(rec);setRecView("detail");setRecTab("ingredients");await loadRecDetail(rec);};
+
+  // ── M3 load ───────────────────────────────────────────────────
+  const loadBatches=async()=>{
+    try{
+      const b=await db.get("production_batches","?order=created_at.desc");
+      setBatches(Array.isArray(b)?b:[]);
+    }catch(e){setErr("Batches: "+e.message);}
+  };
+
+  const loadBatchDetail=async batch=>{
+    try{
+      const[rec,ri,rs,logs,wc]=await Promise.all([
+        db.get("recipes",`?id=eq.${batch.recipe_id}&select=*`),
+        db.get("recipe_ingredients",`?recipe_id=eq.${batch.recipe_id}&select=id,processed_qty_base,notes,sort_order,ingredient_id,ingredients(id,name,unit,yield_pct,category)&order=sort_order`),
+        db.get("recipe_steps",`?recipe_id=eq.${batch.recipe_id}&order=step_number`),
+        db.get("batch_step_logs",`?batch_id=eq.${batch.id}`),
+        db.get("batch_weight_checks",`?batch_id=eq.${batch.id}`),
+      ]);
+      const recipe=(Array.isArray(rec)?rec:[])[0];
+      setSelBatchRec(recipe||null);
+      const mixNeeded=batch.target_output_g/(1+(recipe?.overrun_pct||25)/100);
+      const mult=mixNeeded/(recipe?.base_mix_g||800);
+      const scaled=(Array.isArray(ri)?ri:[]).map(item=>({
+        ...item,
+        scaled_processed:item.processed_qty_base*mult,
+        raw_to_pull:(item.processed_qty_base*mult)/((item.ingredients?.yield_pct||100)/100),
+        multiplier:mult,
+      }));
+      setScaledIngs(scaled);
+      setProdSteps(Array.isArray(rs)?rs:[]);
+      setStepLogs(Array.isArray(logs)?logs:[]);
+      setWChecks(Array.isArray(wc)?wc:[]);
+    }catch(e){setErr("Batch detail: "+e.message);}
+  };
+
+  const openBatch=async batch=>{
+    setSelBatch(batch);setBatchView("detail");setBatchTab("pulllist");
+    setTimers({});setShowConfirm(false);setConfirmWt("");
+    await loadBatchDetail(batch);
+  };
+
+  const createBatch=async()=>{
+    if(!newBatchF.recipe_id||!newBatchF.target_kg)return;
+    setSaving(true);setErr(null);
+    try{
+      const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
+      const targetG=parseFloat(newBatchF.target_kg)*1000;
+      const batchNo=genBNo(rec.name,batches.length);
+      const d={
+        batch_number:batchNo,
+        recipe_id:newBatchF.recipe_id,
+        target_output_g:targetG,
+        status:"pending",
+      };
+      const created=await db.post("production_batches",d);
+      const batch=Array.isArray(created)?created[0]:created;
+      // Create weight checks for yield-adjusted ingredients
+      const ri=await db.get("recipe_ingredients",`?recipe_id=eq.${newBatchF.recipe_id}&select=id,processed_qty_base,ingredient_id,ingredients(id,yield_pct,unit)&order=sort_order`);
+      const mixNeeded=targetG/(1+(rec.overrun_pct||25)/100);
+      const mult=mixNeeded/(rec.base_mix_g||800);
+      for(const item of (Array.isArray(ri)?ri:[])){
+        const yp=item.ingredients?.yield_pct||100;
+        if(parseFloat(yp)<100){
+          await db.post("batch_weight_checks",{
+            batch_id:batch.id,
+            ingredient_id:item.ingredient_id,
+            target_processed_g:item.processed_qty_base*mult,
+            status:"pending",
+          });
+        }
+      }
+      await loadBatches();
+      setNewBatchF(null);
+      const fresh=await db.get("production_batches",`?id=eq.${batch.id}`);
+      await openBatch((Array.isArray(fresh)?fresh:[])[0]||batch);
+    }catch(e){setErr("Create failed: "+e.message);}
+    setSaving(false);
+  };
+
+  const startBatch=async()=>{
+    try{
+      await db.patch("production_batches",selBatch.id,{status:"in_progress"});
+      const updated={...selBatch,status:"in_progress"};
+      setSelBatch(updated);
+      setBatches(prev=>prev.map(b=>b.id===selBatch.id?updated:b));
+    }catch(e){setErr("Start failed: "+e.message);}
+  };
+
+  const isStepDone=stepId=>stepLogs.some(l=>l.step_id===stepId&&l.completed_at);
+  const isStepAvail=(step,allSteps)=>{
+    if(step.step_number===1)return true;
+    const prev=allSteps.find(s=>s.step_number===step.step_number-1);
+    return prev?isStepDone(prev.id):true;
+  };
+
+  const completeStep=async step=>{
+    if(isStepDone(step.id))return;
+    try{
+      await db.post("batch_step_logs",{batch_id:selBatch.id,step_id:step.id,completed_at:new Date().toISOString()});
+      setStepLogs(prev=>[...prev,{step_id:step.id,completed_at:new Date().toISOString()}]);
+      setTimers(prev=>{const n={...prev};if(n[step.id])n[step.id]={...n[step.id],running:false};return n;});
+    }catch(e){setErr("Step failed: "+e.message);}
+  };
+
+  const saveWeightCheck=async()=>{
+    if(!wCheckF)return;
+    setSaving(true);setErr(null);
+    try{
+      const raw=parseFloat(wCheckF.raw_weight)||0;
+      const processed=parseFloat(wCheckF.processed_weight)||0;
+      const actualYield=raw>0?(processed/raw*100):0;
+      const target=wCheckF.target_processed_g||0;
+      const status=processed>=target?"met":processed<target*0.95?"short":"surplus";
+      const d={raw_weight_g:raw,processed_weight_g:processed,actual_yield_pct:actualYield,status};
+      await db.patch("batch_weight_checks",wCheckF.id,d);
+      setWChecks(prev=>prev.map(w=>w.id===wCheckF.id?{...w,...d}:w));
+      setWCheckF(null);
+    }catch(e){setErr("Weight check failed: "+e.message);}
+    setSaving(false);
+  };
+
+  const voidBatch=async()=>{
+    if(!window.confirm("Void this batch? Inventory will not be deducted."))return;
+    try{
+      await db.patch("production_batches",selBatch.id,{status:"voided"});
+      await loadBatches();setBatchView("list");setSelBatch(null);
+    }catch(e){setErr("Void failed: "+e.message);}
+  };
+
+  const confirmBatch=async()=>{
+    if(!confirmWt||parseFloat(confirmWt)<=0){setErr("Please enter actual output weight in kg");return;}
+    setSaving(true);setErr(null);
+    try{
+      const actualG=parseFloat(confirmWt)*1000;
+      const mixUsed=selBatch.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100);
+      const actualOverrun=((actualG-mixUsed)/mixUsed)*100;
+      await db.patch("production_batches",selBatch.id,{
+        status:"completed",actual_output_g:actualG,
+        actual_overrun_pct:parseFloat(actualOverrun.toFixed(2)),
+        confirmed_at:new Date().toISOString(),
+      });
+      // Attempt FIFO inventory deduction
+      for(const ing of scaledIngs){
+        try{
+          const stockBatches=await db.get("ingredient_batches",`?ingredient_id=eq.${ing.ingredient_id}&qty_remaining=gt.0&order=received_at`);
+          let rem=ing.raw_to_pull;
+          for(const sb of (Array.isArray(stockBatches)?stockBatches:[])){
+            if(rem<=0)break;
+            const deduct=Math.min(sb.qty_remaining,rem);
+            await db.patch("ingredient_batches",sb.id,{qty_remaining:sb.qty_remaining-deduct});
+            await db.post("inventory_deductions",{
+              batch_id:selBatch.id,ingredient_batch_id:sb.id,
+              ingredient_id:ing.ingredient_id,qty_deducted:deduct,
+              cost_per_unit_at_time:sb.cost_per_unit||0,
+              total_cost:deduct*(sb.cost_per_unit||0),
+            });
+            rem-=deduct;
+          }
+        }catch(e2){/* inventory not yet loaded - graceful */}
+      }
+      await loadBatches();
+      setBatchView("list");setSelBatch(null);setShowConfirm(false);setConfirmWt("");
+    }catch(e){setErr("Confirm failed: "+e.message);}
+    setSaving(false);
+  };
+
+  // ── Derived ───────────────────────────────────────────────────
+  const filtIngs=ings.filter(i=>i.name.toLowerCase().includes(search.toLowerCase())&&(cat==="all"||i.category===cat)&&(showArch?!i.is_active:i.is_active));
+  const activeIngs=ings.filter(i=>i.is_active);
+  const archivedIngs=ings.filter(i=>!i.is_active);
+  const lockedRecs=recipes.filter(r=>r.status==="locked");
+  const allStepsDone=prodSteps.length>0&&prodSteps.every(s=>isStepDone(s.id));
+
+  // ── M1 actions ────────────────────────────────────────────────
+  const saveIng=async()=>{
+    if(!ingF.data.name.trim())return;setSaving(true);setErr(null);
+    try{const d={...ingF.data,yield_pct:parseFloat(ingF.data.yield_pct)||100,reorder_threshold:parseFloat(ingF.data.reorder_threshold)||0,is_active:true};ingF.mode==="add"?await db.post("ingredients",d):await db.patch("ingredients",ingF.data.id,d);await loadBase();setIngF(null);}
+    catch(e){setErr("Save: "+e.message);}setSaving(false);
+  };
+  const archiveIng=async id=>{if(!window.confirm("Archive?"))return;await db.patch("ingredients",id,{is_active:false});await loadBase();setIngF(null);};
+  const restoreIng=async id=>{await db.patch("ingredients",id,{is_active:true});await loadBase();setIngF(null);};
+  const deleteIng=async id=>{if(!window.confirm("Permanently delete?"))return;try{await db.del("ingredients",id);await loadBase();setIngF(null);}catch(e){setErr("Delete: "+e.message);}};
+  const saveSup=async()=>{
+    if(!supF.data.name.trim())return;setSaving(true);setErr(null);
+    try{const d={...supF.data,is_active:true};supF.mode==="add"?await db.post("suppliers",d):await db.patch("suppliers",supF.data.id,d);await loadBase();setSupF(null);}
+    catch(e){setErr("Save: "+e.message);}setSaving(false);
+  };
+  const archiveSup=async id=>{if(!window.confirm("Archive?"))return;await db.patch("suppliers",id,{is_active:false});await loadBase();setSupF(null);};
+  const deleteSup=async id=>{if(!window.confirm("Delete supplier?"))return;try{await db.del("suppliers",id);await loadBase();setSupF(null);}catch(e){setErr("Delete: "+e.message);}};
+
+  // ── M2 actions ────────────────────────────────────────────────
+  const saveRec=async()=>{
+    if(!recF.data.name.trim())return;setSaving(true);setErr(null);
+    try{
+      const base_output_g=parseFloat(recF.data.base_output_g)||1000;
+      const overrun_pct=parseFloat(recF.data.overrun_pct)||25;
+      const cup_size_ml=parseInt(recF.data.cup_size_ml)||125;
+      const base_mix_g=base_output_g/(1+overrun_pct/100);
+      const d={...recF.data,base_output_g,overrun_pct,cup_size_ml,base_mix_g};
+      if(recF.mode==="add"){await db.post("recipes",d);}
+      else{await db.patch("recipes",recF.data.id,d);if(selRec?.id===recF.data.id)setSelRec({...selRec,...d});}
+      await loadBase();setRecF(null);
+    }catch(e){setErr("Save: "+e.message);}setSaving(false);
+  };
+  const deleteRec=async id=>{
+    if(!window.confirm("Delete recipe and all its data?"))return;
+    try{
+      const[ri,rs]=await Promise.all([db.get("recipe_ingredients",`?recipe_id=eq.${id}&select=id`),db.get("recipe_steps",`?recipe_id=eq.${id}&select=id`)]);
+      for(const r of(Array.isArray(ri)?ri:[]))await db.del("recipe_ingredients",r.id);
+      for(const r of(Array.isArray(rs)?rs:[]))await db.del("recipe_steps",r.id);
+      await db.del("recipes",id);await loadBase();setRecView("list");setSelRec(null);setRecF(null);
+    }catch(e){setErr("Delete: "+e.message);}
+  };
+  const lockRec=async()=>{
+    if(!window.confirm("Lock this recipe? It will become read-only."))return;
+    try{await db.patch("recipes",selRec.id,{status:"locked"});setSelRec({...selRec,status:"locked"});await loadBase();}
+    catch(e){setErr("Lock: "+e.message);}
+  };
+  const saveRecIng=async()=>{
+    if(!recIngF.data.ingredient_id){setErr("Please select an ingredient");return;}
+    if(!recIngF.data.processed_qty_base||parseFloat(recIngF.data.processed_qty_base)<=0){setErr("Enter a quantity greater than 0");return;}
+    if(!selRec){setErr("No recipe selected");return;}
+    setSaving(true);setErr(null);
+    try{
+      const d={recipe_id:selRec.id,ingredient_id:recIngF.data.ingredient_id,processed_qty_base:parseFloat(recIngF.data.processed_qty_base),notes:recIngF.data.notes||"",sort_order:recIngF.mode==="add"?recIngs.length:recIngF.data.sort_order||0};
+      if(recIngF.mode==="add"){await db.post("recipe_ingredients",d);}
+      else{await db.patch("recipe_ingredients",recIngF.data.id,{processed_qty_base:d.processed_qty_base,notes:d.notes});}
+      await loadRecDetail(selRec);setRecIngF(null);
+    }catch(e){setErr("Save: "+e.message);}setSaving(false);
+  };
+  const deleteRecIng=async id=>{if(!window.confirm("Remove ingredient?"))return;try{await db.del("recipe_ingredients",id);await loadRecDetail(selRec);}catch(e){setErr(e.message);}};
+  const saveStep=async()=>{
+    if(!stepF.data.title.trim())return;setSaving(true);setErr(null);
+    try{
+      const sec=toSecs(stepF.data.timer_min,stepF.data.timer_sec);
+      const d={recipe_id:selRec.id,step_number:stepF.mode==="add"?recSteps.length+1:stepF.data.step_number,title:stepF.data.title,instruction:stepF.data.instruction||"",timer_seconds:sec>0?sec:null,requires_weight_check:stepF.data.requires_weight_check||false,requires_photo:stepF.data.requires_photo||false};
+      if(stepF.mode==="add"){await db.post("recipe_steps",d);}else{await db.patch("recipe_steps",stepF.data.id,d);}
+      await loadRecDetail(selRec);setStepF(null);
+    }catch(e){setErr("Save: "+e.message);}setSaving(false);
+  };
+  const deleteStep=async id=>{if(!window.confirm("Delete step?"))return;try{await db.del("recipe_steps",id);await loadRecDetail(selRec);}catch(e){setErr(e.message);}};
+
+  const MODS=[
+    {key:"ingredients",label:"Ingredienti",icon:"🥛"},
+    {key:"recipes",label:"Ricette",icon:"📋"},
+    {key:"production",label:"Produzione",icon:"⚗️"},
+    {key:"inventory",label:"Inventario",icon:"📦",soon:true},
+    {key:"costs",label:"Costi",icon:"₹",soon:true},
+  ];
+
+  return(
+    <div style={S.page}>
+      <div style={S.hdr}>
+        <div style={S.hN}>etto</div>
+        <div style={{textAlign:"right"}}>
+          <div style={S.hS}>Production Management System</div>
+          <div style={{...S.hS,color:C.kD,fontSize:9}}>
+            {mod==="ingredients"?"Module I":mod==="recipes"?"Module II":mod==="production"?"Module III":"Coming soon"}
+          </div>
+        </div>
+      </div>
+
+      {err&&<div style={{...S.err,margin:"0.75rem 1.25rem 0"}} onClick={()=>setErr(null)}>⚠ {err} · tap to dismiss</div>}
+
+      {/* ═══ MODULE 1 ════════════════════════════════════════════ */}
+      {mod==="ingredients"&&(
+        <>
+          <div style={S.subNav}>
+            {[["ingredienti","Ingredienti"],["fornitori","Fornitori"]].map(([k,l])=>(
+              <button key={k} style={S.subB(ingTab===k)} onClick={()=>{setIngTab(k);setSrch("");setCat("all");setShowArch(false);}}>{l}</button>
+            ))}
+          </div>
+          <div style={S.body}>
+            {load?<div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Connecting…</div>:(
+              ingTab==="ingredienti"?(
+                <>
+                  <div style={S.sBar}>
+                    <div style={S.sC}><div style={S.sN}>{activeIngs.length}</div><div style={S.sL}>Active</div></div>
+                    <div style={S.sC}><div style={S.sN}>{CATS.filter(c=>activeIngs.some(i=>i.category===c)).length}</div><div style={S.sL}>Categories</div></div>
+                    <div style={S.sC}><div style={{...S.sN,color:C.k}}>{archivedIngs.length}</div><div style={S.sL}>Archived</div></div>
+                  </div>
+                  <div style={{display:"flex",gap:"0.75rem",alignItems:"center",marginBottom:"1rem"}}>
+                    <input style={S.srch} placeholder="Search ingredients…" value={search} onChange={e=>setSrch(e.target.value)}/>
+                    <button style={S.pill(showArch)} onClick={()=>setShowArch(a=>!a)}>{showArch?"Archived":"Active"}</button>
+                  </div>
+                  <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"1.25rem"}}>
+                    {["all",...CATS].map(c=><button key={c} style={S.pill(cat===c)} onClick={()=>setCat(c)}>{c}</button>)}
+                  </div>
+                  <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2}}>
+                    <table style={S.tbl}>
+                      <thead><tr>{["Ingredient","Category","Unit","Yield %","Reorder","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {filtIngs.length===0?(<tr><td colSpan={6} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>{showArch?"No archived":"No ingredients found"}</td></tr>)
+                        :filtIngs.map((ing,i)=>(
+                          <tr key={ing.id} style={{cursor:"pointer",background:i%2===0?"white":C.kP,opacity:ing.is_active?1:0.6}}
+                            onClick={()=>setIngF({mode:"edit",data:{...ing,yield_pct:String(ing.yield_pct),reorder_threshold:String(ing.reorder_threshold)}})}>
+                            <td style={{...S.td,fontWeight:600,color:C.ink}}>{ing.name}</td>
+                            <td style={S.td}><span style={S.bdg(ing.category)}>{ing.category}</span></td>
+                            <td style={{...S.td,color:C.inkL}}>{ing.unit}</td>
+                            <td style={S.td}><span style={{color:parseFloat(ing.yield_pct)<100?C.orange:C.green,fontWeight:500}}>{ing.yield_pct}%</span></td>
+                            <td style={S.td}>{ing.reorder_threshold}{ing.unit}</td>
+                            <td style={{...S.td,color:C.inkL,fontStyle:"italic",fontSize:12,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ing.notes||"—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p style={S.note}>{filtIngs.length} ingredients · Tap any row to edit</p>
+                </>
+              ):(
+                <>
+                  <div style={{...S.sBar,gridTemplateColumns:"1fr 1fr"}}>
+                    <div style={S.sC}><div style={S.sN}>{sups.length}</div><div style={S.sL}>Suppliers</div></div>
+                    <div style={S.sC}><div style={{...S.sN,color:C.k}}>{activeIngs.length}</div><div style={S.sL}>Ingredients</div></div>
+                  </div>
+                  <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2}}>
+                    <table style={S.tbl}>
+                      <thead><tr>{["Supplier","Contact","Phone","Email","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {sups.length===0?(<tr><td colSpan={5} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>No suppliers — tap + to add</td></tr>)
+                        :sups.map((sup,i)=>(
+                          <tr key={sup.id} style={{cursor:"pointer",background:i%2===0?"white":C.kP}} onClick={()=>setSupF({mode:"edit",data:{...sup}})}>
+                            <td style={{...S.td,fontWeight:600,color:C.ink}}>{sup.name}</td>
+                            <td style={S.td}>{sup.contact_name||"—"}</td>
+                            <td style={S.td}>{sup.phone||"—"}</td>
+                            <td style={S.td}>{sup.email||"—"}</td>
+                            <td style={{...S.td,fontStyle:"italic",color:C.inkL,fontSize:12}}>{sup.notes||"—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )
+            )}
+          </div>
+          <button style={S.fab} onClick={()=>ingTab==="ingredienti"?setIngF({mode:"add",data:{...E_ING}}):setSupF({mode:"add",data:{...E_SUP}})}>+</button>
+        </>
+      )}
+
+      {/* ═══ MODULE 2 ════════════════════════════════════════════ */}
+      {mod==="recipes"&&(
+        <>
+          {recView==="list"?(
+            <>
+              <div style={S.body}>
+                {load?<div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Loading…</div>:(
+                  <>
+                    <div style={S.sBar}>
+                      <div style={S.sC}><div style={S.sN}>{recipes.length}</div><div style={S.sL}>Total</div></div>
+                      <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{recipes.filter(r=>r.status==="trial").length}</div><div style={S.sL}>In Trial</div></div>
+                      <div style={S.sC}><div style={{...S.sN,color:C.green}}>{recipes.filter(r=>r.status==="locked").length}</div><div style={S.sL}>Locked</div></div>
+                    </div>
+                    {recipes.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No recipes yet — tap + to create</div>)
+                    :recipes.map(rec=>(
+                      <div key={rec.id} style={S.rCard} onClick={()=>openRec(rec)}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+                          <div style={S.rCN}>{rec.name}</div>
+                          <span style={S.stsBdg(rec.status)}>{STS_L[rec.status]}</span>
+                        </div>
+                        {rec.description&&<div style={{...S.rCM,marginBottom:"0.5rem"}}>{rec.description}</div>}
+                        <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
+                          <span style={S.rCM}>Output: {rec.base_output_g}g</span>
+                          <span style={S.rCM}>Overrun: {rec.overrun_pct}%</span>
+                          <span style={S.rCM}>Mix: {mixWt(rec.base_output_g,rec.overrun_pct).toFixed(0)}g</span>
+                          <span style={S.rCM}>Cups: {cups(rec.base_output_g,rec.cup_size_ml)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+              <button style={S.fab} onClick={()=>setRecF({mode:"add",data:{...E_REC}})}>+</button>
+            </>
+          ):(
+            <div style={S.body}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+                <button style={S.backB} onClick={()=>{setRecView("list");setSelRec(null);}}>← All Recipes</button>
+                <div style={{display:"flex",gap:"0.5rem"}}>
+                  {selRec?.status!=="locked"&&<button style={S.btnSm} onClick={()=>setRecF({mode:"edit",data:{...selRec,base_output_g:String(selRec.base_output_g),overrun_pct:String(selRec.overrun_pct),cup_size_ml:String(selRec.cup_size_ml)}})}>Edit</button>}
+                  {selRec?.status!=="locked"&&<button style={{...S.btnSm,color:C.green,borderColor:C.green}} onClick={lockRec}>Lock</button>}
+                  {selRec?.status!=="locked"&&<button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={()=>deleteRec(selRec.id)}>Delete</button>}
+                </div>
+              </div>
+              {selRec&&(
+                <div style={{background:C.ink,borderRadius:2,padding:"1.1rem",marginBottom:"1.25rem",border:`0.5px solid ${C.k}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.6rem",flexWrap:"wrap"}}>
+                    <div style={{fontSize:19,color:C.kL,fontFamily:"Georgia,serif"}}>{selRec.name}</div>
+                    <span style={S.stsBdg(selRec.status)}>{STS_L[selRec.status]}</span>
+                  </div>
+                  {selRec.description&&<div style={{fontSize:12,color:C.k,fontStyle:"italic",marginBottom:"0.75rem"}}>{selRec.description}</div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem 2rem"}}>
+                    {[["Target Output",`${selRec.base_output_g}g`],["Overrun",`${selRec.overrun_pct}%`],["Mix Needed",`${mixWt(selRec.base_output_g,selRec.overrun_pct).toFixed(1)}g`],["Cup Size",`${selRec.cup_size_ml}ml`],["Cups/Batch",`${cups(selRec.base_output_g,selRec.cup_size_ml)}`]].map(([l,v])=>(
+                      <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:2}}>{v}</div></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{...S.subNav,marginBottom:"1.25rem"}}>
+                {[["ingredients",`Ingredients (${recIngs.length})`],["steps",`Steps (${recSteps.length})`]].map(([k,l])=>(
+                  <button key={k} style={S.subB(recTab===k)} onClick={()=>setRecTab(k)}>{l}</button>
+                ))}
+              </div>
+              {recTab==="ingredients"&&(
+                <>
+                  {recIngs.length===0?(<div style={{...S.info,textAlign:"center"}}>No ingredients — tap + Add Ingredient</div>):(
+                    <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2,marginBottom:"1rem"}}>
+                      <table style={S.tbl}>
+                        <thead><tr>{["Ingredient","Unit","Processed Qty","Yield","Raw to Pull",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {recIngs.map((ri,i)=>{const ing=ri.ingredients||{};const raw=rawQty(ri.processed_qty_base,ing.yield_pct||100);return(
+                            <tr key={ri.id} style={{background:i%2===0?"white":C.kP}}>
+                              <td style={{...S.td,fontWeight:600,color:C.ink}}>{ing.name}{ri.notes&&<div style={{fontSize:11,color:C.inkL,fontStyle:"italic"}}>{ri.notes}</div>}</td>
+                              <td style={{...S.td,color:C.inkL}}>{ing.unit}</td>
+                              <td style={S.td}>{ri.processed_qty_base}{ing.unit}</td>
+                              <td style={S.td}><span style={{color:parseFloat(ing.yield_pct)<100?C.orange:C.green,fontSize:12,fontWeight:500}}>{ing.yield_pct}%</span></td>
+                              <td style={{...S.td,fontWeight:600,color:C.ink}}>{raw.toFixed(1)}{ing.unit}</td>
+                              <td style={S.td}>{selRec?.status!=="locked"&&(<div style={{display:"flex",gap:"0.4rem"}}><button style={S.btnSm} onClick={()=>setRecIngF({mode:"edit",data:{...ri,processed_qty_base:String(ri.processed_qty_base)}})}>Edit</button><button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={()=>deleteRecIng(ri.id)}>✕</button></div>)}</td>
+                            </tr>
+                          );})}
+                          <tr style={{background:C.kP}}>
+                            <td style={{...S.td,fontWeight:600,color:C.ink,fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em"}} colSpan={2}>Total Mix</td>
+                            <td style={{...S.td,fontWeight:700,color:C.ink}}>{recIngs.reduce((s,ri)=>s+(parseFloat(ri.processed_qty_base)||0),0).toFixed(1)}g</td>
+                            <td colSpan={3} style={{...S.td,fontSize:11,color:C.inkL,fontStyle:"italic"}}>Target: {selRec?mixWt(selRec.base_output_g,selRec.overrun_pct).toFixed(1):0}g</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {selRec?.status!=="locked"&&<button style={S.btn} onClick={()=>setRecIngF({mode:"add",data:{...E_RI}})}>+ Add Ingredient</button>}
+                </>
+              )}
+              {recTab==="steps"&&(
+                <>
+                  {recSteps.length===0?(<div style={{...S.info,textAlign:"center"}}>No steps — tap + Add Step</div>)
+                  :recSteps.map(step=>(
+                    <div key={step.id} style={{...S.stepBox,background:"white",border:`0.5px solid ${C.bd}`}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem"}}>
+                        <div style={S.stepN}>{step.step_number}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,color:C.ink,fontSize:14,marginBottom:"0.3rem"}}>{step.title}</div>
+                          {step.instruction&&<div style={{fontSize:13,color:C.inkM,lineHeight:1.65,marginBottom:"0.5rem"}}>{step.instruction}</div>}
+                          <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap"}}>
+                            {step.timer_seconds&&<span style={{fontSize:11,color:C.kD,background:C.kP,padding:"2px 8px",borderRadius:2}}>⏱ {Math.floor(step.timer_seconds/60)}m {step.timer_seconds%60}s</span>}
+                            {step.requires_weight_check&&<span style={{fontSize:11,color:C.blue,background:`${C.blue}12`,padding:"2px 8px",borderRadius:2}}>⚖ Weight check</span>}
+                            {step.requires_photo&&<span style={{fontSize:11,color:C.inkL,background:C.kP,padding:"2px 8px",borderRadius:2}}>📷 Photo</span>}
+                          </div>
+                        </div>
+                        {selRec?.status!=="locked"&&(
+                          <div style={{display:"flex",gap:"0.4rem",flexShrink:0}}>
+                            <button style={S.btnSm} onClick={()=>{const t=fromSec(step.timer_seconds||0);setStepF({mode:"edit",data:{...step,timer_min:String(t.min),timer_sec:String(t.sec)}});}}>Edit</button>
+                            <button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={()=>deleteStep(step.id)}>✕</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {selRec?.status!=="locked"&&<button style={S.btn} onClick={()=>setStepF({mode:"add",data:{...E_ST,step_number:recSteps.length+1}})}>+ Add Step</button>}
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══ MODULE 3 — BATCH PRODUCTION ═════════════════════════ */}
+      {mod==="production"&&(
+        <>
+          {batchView==="list"?(
+            <>
+              <div style={S.body}>
+                <div style={S.sBar}>
+                  <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{batches.filter(b=>b.status==="in_progress").length}</div><div style={S.sL}>In Progress</div></div>
+                  <div style={S.sC}><div style={S.sN}>{batches.filter(b=>b.status==="pending").length}</div><div style={S.sL}>Pending</div></div>
+                  <div style={S.sC}><div style={{...S.sN,color:C.green}}>{batches.filter(b=>b.status==="completed").length}</div><div style={S.sL}>Completed</div></div>
+                </div>
+                {lockedRecs.length===0&&(
+                  <div style={S.info}>⚠ No locked recipes yet. Lock a recipe in Ricette before placing a production order.</div>
+                )}
+                {batches.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No batches yet — tap + to place your first production order</div>)
+                :batches.map(b=>(
+                  <div key={b.id} style={{...S.rCard,borderLeft:`3px solid ${BSTS_C[b.status]||C.bd}`}} onClick={()=>openBatch(b)}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.4rem"}}>
+                      <div style={{fontFamily:"Georgia,serif",fontSize:15,color:C.ink,fontWeight:600}}>{b.batch_number}</div>
+                      <span style={S.bstsBdg(b.status)}>{BSTS_L[b.status]}</span>
+                    </div>
+                    <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
+                      <span style={S.rCM}>Target: {fmt(b.target_output_g,'g')}</span>
+                      {b.actual_output_g&&<span style={S.rCM}>Actual: {fmt(b.actual_output_g,'g')}</span>}
+                      <span style={{...S.rCM,fontSize:11}}>{new Date(b.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {lockedRecs.length>0&&<button style={S.fab} onClick={()=>setNewBatchF({recipe_id:"",target_kg:"1"})}>+</button>}
+            </>
+          ):(
+            /* Batch Detail */
+            <div style={S.body}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+                <button style={S.backB} onClick={()=>{setBatchView("list");setSelBatch(null);}}>← All Batches</button>
+                <div style={{display:"flex",gap:"0.5rem"}}>
+                  {selBatch?.status==="pending"&&<button style={{...S.btnSm,color:C.green,borderColor:C.green,background:`${C.green}12`}} onClick={startBatch}>▶ Start Batch</button>}
+                  {(selBatch?.status==="pending"||selBatch?.status==="in_progress")&&<button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={voidBatch}>Void</button>}
+                </div>
+              </div>
+
+              {/* Batch header */}
+              {selBatch&&(
+                <div style={{background:C.ink,borderRadius:2,padding:"1.1rem",marginBottom:"1.25rem",border:`0.5px solid ${C.k}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.6rem",flexWrap:"wrap"}}>
+                    <div style={{fontSize:18,color:C.kL,fontFamily:"Georgia,serif",letterSpacing:"0.05em"}}>{selBatch.batch_number}</div>
+                    <span style={S.bstsBdg(selBatch.status)}>{BSTS_L[selBatch.status]}</span>
+                  </div>
+                  {selBatchRec&&<div style={{fontSize:12,color:C.k,fontStyle:"italic",marginBottom:"0.75rem"}}>{selBatchRec.name}</div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem 2rem"}}>
+                    {[
+                      ["Target Output",fmt(selBatch.target_output_g,'g')],
+                      ["Mix to Prepare",fmt(selBatch.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100),'g')],
+                      ["Cups Expected",`${cups(selBatch.target_output_g,selBatchRec?.cup_size_ml||125)}`],
+                      ["Steps Progress",`${stepLogs.length} / ${prodSteps.length}`],
+                    ].map(([l,v])=>(
+                      <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:2}}>{v}</div></div>
+                    ))}
+                  </div>
+                  {prodSteps.length>0&&(
+                    <div style={S.progBar}>
+                      <div style={{height:"100%",width:`${(stepLogs.length/prodSteps.length)*100}%`,background:allStepsDone?C.green:C.orange,borderRadius:3,transition:"width 0.3s"}}/>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sub tabs */}
+              <div style={{...S.subNav,marginBottom:"1.25rem"}}>
+                {[["pulllist","Pull List"],["steps",`Steps (${stepLogs.length}/${prodSteps.length})`]].map(([k,l])=>(
+                  <button key={k} style={S.subB(batchTab===k)} onClick={()=>setBatchTab(k)}>{l}</button>
+                ))}
+              </div>
+
+              {/* PULL LIST TAB */}
+              {batchTab==="pulllist"&&(
+                <>
+                  {scaledIngs.length===0?(<div style={{...S.info,textAlign:"center"}}>Loading ingredients…</div>):(
+                    <>
+                      {scaledIngs.map((si,i)=>{
+                        const ing=si.ingredients||{};
+                        const isYield=parseFloat(ing.yield_pct||100)<100;
+                        const wc=wChecks.find(w=>w.ingredient_id===si.ingredient_id);
+                        return(
+                          <div key={si.id} style={{background:i%2===0?"white":C.kP,border:`0.5px solid ${C.bd}`,borderRadius:2,padding:"0.9rem",marginBottom:"0.5rem"}}>
+                            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.3rem"}}>
+                              <div style={{fontWeight:600,color:C.ink,fontSize:14}}>{ing.name}</div>
+                              {isYield&&wc&&<span style={S.wcChip(wc.status)}>{wc.status==="pending"?"Weigh needed":wc.status}</span>}
+                            </div>
+                            <div style={{display:"flex",gap:"1.5rem",flexWrap:"wrap",marginBottom:"0.3rem"}}>
+                              <div>
+                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Processed needed</div>
+                                <div style={{fontSize:14,color:C.inkM,marginTop:2}}>{fmt(si.scaled_processed,ing.unit)}</div>
+                              </div>
+                              <div>
+                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Yield</div>
+                                <div style={{fontSize:14,color:isYield?C.orange:C.green,fontWeight:500,marginTop:2}}>{ing.yield_pct}%</div>
+                              </div>
+                              <div>
+                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Raw to pull</div>
+                                <div style={{fontSize:16,color:C.ink,fontWeight:700,marginTop:2}}>{fmt(si.raw_to_pull,ing.unit)}</div>
+                              </div>
+                            </div>
+                            {isYield&&wc&&selBatch?.status==="in_progress"&&(
+                              <div style={{marginTop:"0.5rem",paddingTop:"0.5rem",borderTop:`0.5px solid ${C.bd}`}}>
+                                {wc.raw_weight_g?(
+                                  <div style={{fontSize:12,color:C.inkM,fontStyle:"italic"}}>
+                                    Pulled: {fmt(wc.raw_weight_g,ing.unit)} raw · Got: {fmt(wc.processed_weight_g||0,ing.unit)} processed · Yield: {wc.actual_yield_pct?.toFixed(1)||0}%
+                                  </div>
+                                ):(
+                                  <button style={{...S.btnSm,color:C.blue,borderColor:C.blue}} onClick={()=>setWCheckF({...wc,ing_name:ing.name,ing_unit:ing.unit})}>⚖ Enter weights</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div style={{...S.info,marginTop:"1rem"}}>
+                        <strong>Total mix to prepare: {fmt(scaledIngs.reduce((s,si)=>s+si.scaled_processed,0),'g')}</strong>
+                        {" · "}Target: {fmt(selBatch?.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100)||0,'g')}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* STEPS TAB */}
+              {batchTab==="steps"&&(
+                <>
+                  {prodSteps.length===0?(<div style={{...S.info,textAlign:"center"}}>No steps defined for this recipe</div>)
+                  :prodSteps.map(step=>{
+                    const done=isStepDone(step.id);
+                    const avail=selBatch?.status==="in_progress"&&isStepAvail(step,prodSteps);
+                    const timer=timers[step.id];
+                    return(
+                      <div key={step.id} style={{...S.stepBox,...(done?{background:`${C.green}08`,border:`0.5px solid ${C.green}`}:avail?{background:"white",border:`0.5px solid ${C.bd}`}:{background:C.kP,border:`0.5px solid ${C.bd}`,opacity:0.55})}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:"0.75rem"}}>
+                          {done?<div style={S.stepNDone}>✓</div>:<div style={S.stepN}>{step.step_number}</div>}
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:600,color:done?C.green:C.ink,fontSize:14,marginBottom:"0.3rem"}}>{step.title}</div>
+                            {step.instruction&&<div style={{fontSize:13,color:C.inkM,lineHeight:1.65,marginBottom:"0.5rem"}}>{step.instruction}</div>}
+                            <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"0.5rem"}}>
+                              {step.requires_weight_check&&<span style={{fontSize:11,color:C.blue,background:`${C.blue}12`,padding:"2px 8px",borderRadius:2}}>⚖ Weight check</span>}
+                              {step.requires_photo&&<span style={{fontSize:11,color:C.inkL,background:C.kP,padding:"2px 8px",borderRadius:2}}>📷 Photo</span>}
+                            </div>
+                            {avail&&!done&&step.timer_seconds&&(
+                              <div style={{marginBottom:"0.5rem"}}>
+                                <div style={{fontSize:32,fontFamily:"Georgia,serif",color:timer?.remaining===0?C.red:C.ink,letterSpacing:"0.1em",textAlign:"center",padding:"0.5rem",background:timer?.remaining===0?`${C.red}10`:C.kP,borderRadius:2,marginBottom:"0.4rem"}}>
+                                  {timer?fmtT(timer.remaining):`${Math.floor(step.timer_seconds/60)}:${String(step.timer_seconds%60).padStart(2,'0')}`}
+                                </div>
+                                {(!timer||!timer.running)&&timer?.remaining!==0&&(
+                                  <button style={{...S.btnSm,width:"100%",textAlign:"center",padding:"8px"}} onClick={()=>setTimers(t=>({...t,[step.id]:{remaining:step.timer_seconds,running:true}}))}>
+                                    ▶ Start Timer
+                                  </button>
+                                )}
+                                {timer?.remaining===0&&<div style={{textAlign:"center",fontSize:12,color:C.red,fontStyle:"italic"}}>⏰ Timer complete — mark step done</div>}
+                              </div>
+                            )}
+                            {avail&&!done&&(
+                              <button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:13}} onClick={()=>completeStep(step)}>
+                                ✓ Mark Step Complete
+                              </button>
+                            )}
+                            {done&&<div style={{fontSize:12,color:C.green,fontStyle:"italic"}}>✓ Completed</div>}
+                            {!avail&&!done&&<div style={{fontSize:11,color:C.inkL,fontStyle:"italic"}}>Complete step {step.step_number-1} first</div>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Batch Confirmation */}
+                  {allStepsDone&&selBatch?.status==="in_progress"&&(
+                    <div style={{background:`${C.green}08`,border:`1.5px solid ${C.green}`,borderRadius:2,padding:"1.25rem",marginTop:"1rem"}}>
+                      <div style={{fontFamily:"Georgia,serif",fontSize:16,color:C.green,marginBottom:"0.75rem"}}>✓ All Steps Complete — Confirm Batch</div>
+                      <Field label="Actual finished gelato weight (kg)">
+                        <Inp val={confirmWt} set={setConfirmWt} type="number" min="0" step="0.01" placeholder="e.g. 3.12"/>
+                      </Field>
+                      {confirmWt&&parseFloat(confirmWt)>0&&(
+                        <div style={{...S.info,marginBottom:"1rem"}}>
+                          Actual output: <strong>{(parseFloat(confirmWt)*1000).toFixed(0)}g</strong>
+                          {selBatchRec&&` · Overrun: ${(((parseFloat(confirmWt)*1000)-selBatch.target_output_g/(1+(selBatchRec.overrun_pct||25)/100))/(selBatch.target_output_g/(1+(selBatchRec.overrun_pct||25)/100))*100).toFixed(1)}%`}
+                          {` · Cups: ${cups(parseFloat(confirmWt)*1000,selBatchRec?.cup_size_ml||125)}`}
+                        </div>
+                      )}
+                      <button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:14,padding:"13px"}} onClick={confirmBatch} disabled={saving||!confirmWt}>
+                        {saving?"Confirming…":"Confirm Batch Complete — Deduct Inventory"}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══ COMING SOON ═════════════════════════════════════════ */}
+      {["inventory","costs"].includes(mod)&&(
+        <div style={{textAlign:"center",padding:"5rem 2rem",color:C.inkL}}>
+          <div style={{fontSize:44,marginBottom:"1rem"}}>{mod==="inventory"?"📦":"₹"}</div>
+          <div style={{fontFamily:"Georgia,serif",fontSize:20,color:C.ink,marginBottom:"0.5rem"}}>{mod==="inventory"?"Inventory Module":"Cost Module"}</div>
+          <div style={{fontStyle:"italic",fontSize:14}}>Coming in the next build</div>
+        </div>
+      )}
+
+      {/* Bottom Nav */}
+      <div style={S.modNav}>
+        {MODS.map(m=>(
+          <button key={m.key} style={S.modB(mod===m.key,m.soon)} onClick={()=>!m.soon&&setMod(m.key)} disabled={m.soon}>
+            <span style={{fontSize:18}}>{m.icon}</span>
+            <span>{m.label}</span>
+            {m.soon&&<span style={{fontSize:8,color:C.k}}>soon</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══ DRAWERS ══════════════════════════════════════════════ */}
+
+      {/* Ingredient */}
+      {ingF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setIngF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}>
+            <span>{ingF.mode==="add"?"New Ingredient":"Edit Ingredient"}</span>
+            {ingF.mode==="edit"&&(<div style={S.actB}>
+              {ingF.data.is_active?<button style={S.archB} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>:<button style={S.restB} onClick={()=>restoreIng(ingF.data.id)}>Restore</button>}
+              <button style={S.delB} onClick={()=>deleteIng(ingF.data.id)}>Delete</button>
+            </div>)}
+          </div>
+          <Field label="Name *"><Inp val={ingF.data.name} set={v=>setIngF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Alphonso Mango (raw)"/></Field>
+          <div style={S.gr}>
+            <Field label="Category"><SelEl val={ingF.data.category} set={v=>setIngF(f=>({...f,data:{...f.data,category:v}}))} opts={CATS}/></Field>
+            <Field label="Unit"><SelEl val={ingF.data.unit} set={v=>setIngF(f=>({...f,data:{...f.data,unit:v}}))} opts={UNITS}/></Field>
+          </div>
+          <div style={S.gr}>
+            <Field label="Yield %"><Inp val={ingF.data.yield_pct} set={v=>setIngF(f=>({...f,data:{...f.data,yield_pct:v}}))} type="number" min="1" max="100"/></Field>
+            <Field label={`Reorder (${ingF.data.unit})`}><Inp val={ingF.data.reorder_threshold} set={v=>setIngF(f=>({...f,data:{...f.data,reorder_threshold:v}}))} type="number" min="0"/></Field>
+          </div>
+          {parseFloat(ingF.data.yield_pct)<100&&<div style={S.info}>At {ingF.data.yield_pct}% — 1,000g processed needs <strong style={{color:C.ink}}>{(1000/(parseFloat(ingF.data.yield_pct)/100)).toFixed(0)}g raw</strong></div>}
+          <Field label="Notes"><Inp val={ingF.data.notes||""} set={v=>setIngF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Storage, seasonality…"/></Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setIngF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveIng} disabled={saving}>{saving?"Saving…":"Save"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* Supplier */}
+      {supF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setSupF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}>
+            <span>{supF.mode==="add"?"New Supplier":"Edit Supplier"}</span>
+            {supF.mode==="edit"&&(<div style={S.actB}><button style={S.archB} onClick={()=>archiveSup(supF.data.id)}>Archive</button><button style={S.delB} onClick={()=>deleteSup(supF.data.id)}>Delete</button></div>)}
+          </div>
+          <Field label="Name *"><Inp val={supF.data.name} set={v=>setSupF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Krishna Farms"/></Field>
+          <div style={S.gr}>
+            <Field label="Contact"><Inp val={supF.data.contact_name||""} set={v=>setSupF(f=>({...f,data:{...f.data,contact_name:v}}))} placeholder="Name"/></Field>
+            <Field label="Phone"><Inp val={supF.data.phone||""} set={v=>setSupF(f=>({...f,data:{...f.data,phone:v}}))} placeholder="+91…"/></Field>
+          </div>
+          <Field label="Email"><Inp val={supF.data.email||""} set={v=>setSupF(f=>({...f,data:{...f.data,email:v}}))} placeholder="email@supplier.com"/></Field>
+          <Field label="Address"><Inp val={supF.data.address||""} set={v=>setSupF(f=>({...f,data:{...f.data,address:v}}))} placeholder="City, State"/></Field>
+          <Field label="Notes"><Inp val={supF.data.notes||""} set={v=>setSupF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Lead times, payment terms…"/></Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setSupF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveSup} disabled={saving}>{saving?"Saving…":"Save"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* Recipe */}
+      {recF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setRecF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}>
+            <span>{recF.mode==="add"?"New Recipe":"Edit Recipe"}</span>
+            {recF.mode==="edit"&&<button style={S.delB} onClick={()=>deleteRec(recF.data.id)}>Delete</button>}
+          </div>
+          <Field label="Recipe Name *"><Inp val={recF.data.name} set={v=>setRecF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Smoked Mango + Saffron"/></Field>
+          <Field label="Description"><Inp val={recF.data.description||""} set={v=>setRecF(f=>({...f,data:{...f.data,description:v}}))} placeholder="Short description…"/></Field>
+          <div style={S.gr}>
+            <Field label="Target Output (g)"><Inp val={recF.data.base_output_g} set={v=>setRecF(f=>({...f,data:{...f.data,base_output_g:v}}))} type="number" min="100"/></Field>
+            <Field label="Overrun %"><Inp val={recF.data.overrun_pct} set={v=>setRecF(f=>({...f,data:{...f.data,overrun_pct:v}}))} type="number" min="0" max="100"/></Field>
+          </div>
+          <div style={S.info}>Mix needed: <strong style={{color:C.ink}}>{mixWt(recF.data.base_output_g,recF.data.overrun_pct).toFixed(1)}g</strong> · Cups: <strong style={{color:C.ink}}>{cups(recF.data.base_output_g,recF.data.cup_size_ml)}</strong></div>
+          <div style={S.gr}>
+            <Field label="Cup Size (ml)"><Inp val={recF.data.cup_size_ml} set={v=>setRecF(f=>({...f,data:{...f.data,cup_size_ml:v}}))} type="number" min="50"/></Field>
+            <Field label="Status"><SelEl val={recF.data.status} set={v=>setRecF(f=>({...f,data:{...f.data,status:v}}))} opts={["draft","trial","locked"]} labels={["Draft","In Trial","Locked"]}/></Field>
+          </div>
+          <Field label="Notes"><Inp val={recF.data.notes||""} set={v=>setRecF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Development notes…"/></Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setRecF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveRec} disabled={saving}>{saving?"Saving…":"Save Recipe"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* Recipe Ingredient */}
+      {recIngF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setRecIngF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>{recIngF.mode==="add"?"Add Ingredient":"Edit Quantity"}</span></div>
+          {recIngF.mode==="add"?(
+            <Field label="Select Ingredient *">
+              <select style={S.sel} value={recIngF.data.ingredient_id} onChange={e=>setRecIngF(f=>({...f,data:{...f.data,ingredient_id:e.target.value}}))}>
+                <option value="">— Choose ingredient —</option>
+                {ingOpts.map(io=><option key={io.id} value={io.id}>{io.name} ({io.unit}){recIngs.some(ri=>ri.ingredient_id===io.id)?" ✓":""}</option>)}
+              </select>
+            </Field>
+          ):(
+            <div style={{...S.info,marginBottom:"1rem"}}><strong>{recIngF.data.ingredients?.name}</strong></div>
+          )}
+          <Field label="Processed Quantity for Base Batch">
+            <Inp val={recIngF.data.processed_qty_base} set={v=>setRecIngF(f=>({...f,data:{...f.data,processed_qty_base:v}}))} type="number" min="0" step="0.1" placeholder="e.g. 270"/>
+          </Field>
+          {recIngF.data.processed_qty_base&&recIngF.data.ingredient_id&&(()=>{
+            const io=ingOpts.find(i=>i.id===recIngF.data.ingredient_id)||recIngF.data.ingredients||{};
+            const yp=parseFloat(io.yield_pct)||100;
+            if(yp<100)return <div style={S.info}>At {yp}% yield → pull <strong style={{color:C.ink}}>{rawQty(recIngF.data.processed_qty_base,yp).toFixed(1)}{io.unit}</strong> raw from stock</div>;
+            return null;
+          })()}
+          <Field label="Notes"><Inp val={recIngF.data.notes||""} set={v=>setRecIngF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Optional…"/></Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setRecIngF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveRecIng} disabled={saving}>{saving?"Saving…":"Save"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* Step */}
+      {stepF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setStepF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>{stepF.mode==="add"?`New Step ${stepF.data.step_number}`:`Edit Step ${stepF.data.step_number}`}</span></div>
+          <Field label="Title *"><Inp val={stepF.data.title} set={v=>setStepF(f=>({...f,data:{...f.data,title:v}}))} placeholder="e.g. Bloom the saffron"/></Field>
+          <Field label="Instruction"><textarea style={S.txta} value={stepF.data.instruction||""} onChange={e=>setStepF(f=>({...f,data:{...f.data,instruction:e.target.value}}))} placeholder="Detailed instruction…"/></Field>
+          <div style={S.fg}>
+            <label style={S.lbl}>Timer (0:0 if none)</label>
+            <div style={S.gr}>
+              <Field label="Minutes"><Inp val={stepF.data.timer_min||"0"} set={v=>setStepF(f=>({...f,data:{...f.data,timer_min:v}}))} type="number" min="0"/></Field>
+              <Field label="Seconds"><Inp val={stepF.data.timer_sec||"0"} set={v=>setStepF(f=>({...f,data:{...f.data,timer_sec:v}}))} type="number" min="0" max="59"/></Field>
+            </div>
+          </div>
+          <Toggle val={stepF.data.requires_weight_check} set={v=>setStepF(f=>({...f,data:{...f.data,requires_weight_check:v}}))} label="Requires weight check"/>
+          <Toggle val={stepF.data.requires_photo} set={v=>setStepF(f=>({...f,data:{...f.data,requires_photo:v}}))} label="Requires photo"/>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setStepF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveStep} disabled={saving}>{saving?"Saving…":"Save Step"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* New Batch */}
+      {newBatchF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setNewBatchF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>New Production Order</span></div>
+          <Field label="Select Recipe (locked only) *">
+            <select style={S.sel} value={newBatchF.recipe_id} onChange={e=>setNewBatchF(f=>({...f,recipe_id:e.target.value}))}>
+              <option value="">— Select a locked recipe —</option>
+              {lockedRecs.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Desired Output (kg)">
+            <Inp val={newBatchF.target_kg} set={v=>setNewBatchF(f=>({...f,target_kg:v}))} type="number" min="0.1" step="0.1" placeholder="e.g. 3"/>
+          </Field>
+          {newBatchF.recipe_id&&newBatchF.target_kg&&(()=>{
+            const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
+            if(!rec)return null;
+            const targetG=parseFloat(newBatchF.target_kg)*1000;
+            const mixNeeded=targetG/(1+(rec.overrun_pct||25)/100);
+            const mult=mixNeeded/(rec.base_mix_g||800);
+            return(
+              <div style={S.info}>
+                Target: <strong style={{color:C.ink}}>{fmt(targetG,'g')}</strong> finished gelato<br/>
+                Mix to prepare: <strong style={{color:C.ink}}>{fmt(mixNeeded,'g')}</strong><br/>
+                Scale factor: <strong style={{color:C.ink}}>×{mult.toFixed(2)}</strong> of base recipe<br/>
+                Cups expected: <strong style={{color:C.ink}}>{cups(targetG,rec.cup_size_ml)}</strong> × {rec.cup_size_ml}ml
+              </div>
+            );
+          })()}
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setNewBatchF(null)}>Cancel</button>
+            <button style={S.btn} onClick={createBatch} disabled={saving||!newBatchF.recipe_id||!newBatchF.target_kg}>{saving?"Creating…":"Create Batch"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* Weight Check */}
+      {wCheckF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setWCheckF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>Weight Check — {wCheckF.ing_name}</span></div>
+          <div style={S.info}>Target processed weight: <strong style={{color:C.ink}}>{fmt(wCheckF.target_processed_g,wCheckF.ing_unit)}</strong></div>
+          <Field label={`Raw weight pulled from stock (${wCheckF.ing_unit})`}>
+            <Inp val={wCheckF.raw_weight||""} set={v=>setWCheckF(f=>({...f,raw_weight:v}))} type="number" min="0" step="0.1" placeholder="Weight before processing"/>
+          </Field>
+          <Field label={`Processed weight after preparation (${wCheckF.ing_unit})`}>
+            <Inp val={wCheckF.processed_weight||""} set={v=>setWCheckF(f=>({...f,processed_weight:v}))} type="number" min="0" step="0.1" placeholder="Weight after processing"/>
+          </Field>
+          {wCheckF.raw_weight&&wCheckF.processed_weight&&(()=>{
+            const raw=parseFloat(wCheckF.raw_weight)||0;
+            const proc=parseFloat(wCheckF.processed_weight)||0;
+            const yld=raw>0?(proc/raw*100):0;
+            const target=wCheckF.target_processed_g||0;
+            const diff=proc-target;
+            return(
+              <div style={{...S.info,background:diff>=0?`${C.green}10`:`${C.red}10`,border:`0.5px solid ${diff>=0?C.green:C.red}`}}>
+                Actual yield: <strong style={{color:C.ink}}>{yld.toFixed(1)}%</strong><br/>
+                {diff>=0?<span style={{color:C.green}}>✓ Target met — {fmt(Math.abs(diff),wCheckF.ing_unit)} surplus</span>:<span style={{color:C.red}}>⚠ Short by {fmt(Math.abs(diff),wCheckF.ing_unit)} — top up or proceed?</span>}
+              </div>
+            );
+          })()}
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setWCheckF(null)}>Cancel</button>
+            <button style={S.btn} onClick={saveWeightCheck} disabled={saving}>{saving?"Saving…":"Save Weight Check"}</button>
+          </div>
+        </div>
+      </div>)}
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
