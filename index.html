@@ -991,7 +991,11 @@ function App(){
             <Field label="Target Output (g)"><Inp val={recF.data.base_output_g} set={v=>setRecF(f=>({...f,data:{...f.data,base_output_g:v}}))} type="number" min="100"/></Field>
             <Field label="Overrun %"><Inp val={recF.data.overrun_pct} set={v=>setRecF(f=>({...f,data:{...f.data,overrun_pct:v}}))} type="number" min="0" max="100"/></Field>
           </div>
-          <div style={S.info}>Mix needed: <strong style={{color:C.ink}}>{mixWt(recF.data.base_output_g,recF.data.overrun_pct).toFixed(1)}g</strong> · Cups: <strong style={{color:C.ink}}>{cups(recF.data.base_output_g,recF.data.cup_size_ml)}</strong></div>
+          <div style={S.info}>
+            Mix in: <strong style={{color:C.ink}}>{parseFloat(recF.data.base_output_g)||0}g</strong>
+            {" → "}Finished volume: <strong style={{color:C.ink}}>{finishedVol(recF.data.base_output_g,recF.data.overrun_pct).toFixed(0)}ml</strong>
+            {" → "}Cups: <strong style={{color:C.ink}}>{cupsFromMix(recF.data.base_output_g,recF.data.overrun_pct,recF.data.cup_size_ml)}</strong> × {recF.data.cup_size_ml}ml
+          </div>
           <div style={S.gr}>
             <Field label="Cup Size (ml)"><Inp val={recF.data.cup_size_ml} set={v=>setRecF(f=>({...f,data:{...f.data,cup_size_ml:v}}))} type="number" min="50"/></Field>
             <Field label="Status"><SelEl val={recF.data.status} set={v=>setRecF(f=>({...f,data:{...f.data,status:v}}))} opts={["draft","trial","locked"]} labels={["Draft","In Trial","Locked"]}/></Field>
