@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Etto — Production Management</title>
-  <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Etto">
@@ -21,11 +20,9 @@
 </head>
 <body>
   <div id="root"></div>
-
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // ── Colours ───────────────────────────────────────
     const C = {
       ink:"#2C1A06", inkM:"#5C3D1A", inkL:"#9B7440",
       k:"#C8A96E", kD:"#8B6914", kL:"#F5EDD8", kP:"#FAF5E9",
@@ -33,35 +30,36 @@
       green:"#3A7A4A", orange:"#CC6600", red:"#9B2A2A"
     };
 
-    // ── Supabase ──────────────────────────────────────
     const SB  = "https://bdnwpasbpvoxmffwzjeu.supabase.co";
     const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbndwYXNicHZveG1mZnd6amV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzU0MDUsImV4cCI6MjA5NTM1MTQwNX0.1anxClT_BMO8FdzDxfWX1OiJV7qmcgWD_k1aTQ7LkXg";
     const GH  = { apikey:KEY, Authorization:`Bearer ${KEY}` };
     const MH  = { ...GH, "Content-Type":"application/json", Prefer:"return=representation" };
 
     const db = {
-      get: async (t, q="") => {
-        const r = await fetch(`${SB}/rest/v1/${t}?order=name${q}`, { headers:GH });
+      get: async (t,q="") => {
+        const r = await fetch(`${SB}/rest/v1/${t}?order=name${q}`,{headers:GH});
         const d = await r.json();
-        if (!r.ok) throw new Error(d.message || r.status);
+        if (!r.ok) throw new Error(d.message||r.status);
         return d;
       },
-      post: async (t, d) => {
-        const r = await fetch(`${SB}/rest/v1/${t}`, { method:"POST", headers:MH, body:JSON.stringify(d) });
+      post: async (t,d) => {
+        const r = await fetch(`${SB}/rest/v1/${t}`,{method:"POST",headers:MH,body:JSON.stringify(d)});
         const data = await r.json();
-        if (!r.ok) throw new Error(data.message || r.status);
+        if (!r.ok) throw new Error(data.message||r.status);
         return data;
       },
-      patch: async (t, id, d) => {
-        const r = await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`, { method:"PATCH", headers:MH, body:JSON.stringify(d) });
+      patch: async (t,id,d) => {
+        const r = await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"PATCH",headers:MH,body:JSON.stringify(d)});
         const data = await r.json();
-        if (!r.ok) throw new Error(data.message || r.status);
+        if (!r.ok) throw new Error(data.message||r.status);
         return data;
       },
-      del: (t, id) => fetch(`${SB}/rest/v1/${t}?id=eq.${id}`, { method:"DELETE", headers:GH }),
+      del: async (t,id) => {
+        const r = await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"DELETE",headers:GH});
+        if (!r.ok) throw new Error(r.status);
+      },
     };
 
-    // ── Constants ─────────────────────────────────────
     const CATS  = ["dairy","fruit","sugar","stabiliser","flavour","oil","salt","other"];
     const UNITS = ["g","ml","unit"];
     const CAT_C = {
@@ -72,7 +70,6 @@
     const EMPTY_ING = { name:"", category:"dairy", unit:"g", yield_pct:"100", reorder_threshold:"0", notes:"" };
     const EMPTY_SUP = { name:"", contact_name:"", phone:"", email:"", address:"", notes:"" };
 
-    // ── Styles ────────────────────────────────────────
     const S = {
       page:  { background:C.cream, minHeight:"100vh", fontFamily:"Georgia,serif", color:C.ink },
       hdr:   { background:C.ink, padding:"1rem 1.5rem", display:"flex", alignItems:"center", justifyContent:"space-between", borderBottom:`2px solid ${C.k}` },
@@ -81,7 +78,7 @@
       nav:   { background:C.ink, display:"flex", borderBottom:`2px solid ${C.k}` },
       navB:  a => ({ flex:1, padding:"0.8rem", background:"none", border:"none", borderBottom:a?`3px solid ${C.k}`:"3px solid transparent", color:a?C.kL:C.inkL, fontSize:13, fontStyle:"italic", fontFamily:"Georgia,serif", cursor:"pointer" }),
       body:  { padding:"1.25rem" },
-      srch:  { width:"100%", padding:"10px 14px", border:`1px solid ${C.bd}`, borderRadius:2, fontSize:15, fontFamily:"Georgia,serif", background:"white", color:C.ink, outline:"none", marginBottom:"1rem", boxSizing:"border-box" },
+      srch:  { flex:1, padding:"10px 14px", border:`1px solid ${C.bd}`, borderRadius:2, fontSize:15, fontFamily:"Georgia,serif", background:"white", color:C.ink, outline:"none" },
       pill:  a => ({ padding:"5px 14px", borderRadius:20, fontSize:10, letterSpacing:"0.12em", textTransform:"uppercase", border:`0.5px solid ${a?C.k:C.bd}`, background:a?C.ink:"none", color:a?C.kL:C.inkL, cursor:"pointer", fontFamily:"Georgia,serif", whiteSpace:"nowrap" }),
       tbl:   { width:"100%", borderCollapse:"collapse" },
       th:    { background:C.ink, color:C.kL, padding:"8px 12px", textAlign:"left", fontSize:9, letterSpacing:"0.22em", textTransform:"uppercase", fontWeight:400 },
@@ -90,8 +87,8 @@
       fab:   { position:"fixed", bottom:32, right:24, background:C.ink, color:C.kL, border:`2px solid ${C.k}`, borderRadius:"50%", width:62, height:62, fontSize:32, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 6px 24px rgba(0,0,0,0.4)", zIndex:50 },
       ovr:   { position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:100 },
       drw:   { background:C.cream, width:"100%", maxWidth:640, borderRadius:"16px 16px 0 0", padding:"2rem", maxHeight:"88vh", overflowY:"auto" },
-      drwH:  { fontSize:20, color:C.ink, marginBottom:"1.5rem", paddingBottom:"0.75rem", borderBottom:`1px solid ${C.bd}`, display:"flex", alignItems:"center", justifyContent:"space-between" },
-      lbl:   { fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:C.inkL, display:"block", marginBottom:5, marginTop:2 },
+      drwH:  { fontSize:20, color:C.ink, marginBottom:"1.5rem", paddingBottom:"0.75rem", borderBottom:`1px solid ${C.bd}`, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"0.5rem" },
+      lbl:   { fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:C.inkL, display:"block", marginBottom:5 },
       inp:   { width:"100%", padding:"12px", border:`1px solid ${C.bd}`, borderRadius:2, fontSize:15, fontFamily:"Georgia,serif", background:"white", color:C.ink, outline:"none", boxSizing:"border-box" },
       sel:   { width:"100%", padding:"12px", border:`1px solid ${C.bd}`, borderRadius:2, fontSize:15, fontFamily:"Georgia,serif", background:"white", color:C.ink },
       fg:    { marginBottom:"1rem" },
@@ -105,6 +102,10 @@
       err:   { background:"rgba(155,42,42,0.08)", border:`0.5px solid ${C.red}`, borderRadius:2, padding:"0.75rem 1rem", marginBottom:"1rem", fontSize:13, color:C.red, fontStyle:"italic" },
       hint:  { background:C.kP, border:`0.5px solid ${C.k}`, borderRadius:2, padding:"0.65rem 0.9rem", marginBottom:"1rem", fontSize:12, color:C.inkM, fontStyle:"italic" },
       note:  { marginTop:"0.75rem", fontSize:11, color:C.inkL, fontStyle:"italic" },
+      actBtns: { display:"flex", gap:"0.5rem", alignItems:"center" },
+      archBtn: { background:"none", border:`0.5px solid ${C.orange}`, color:C.orange, padding:"5px 12px", borderRadius:2, fontSize:11, fontFamily:"Georgia,serif", cursor:"pointer" },
+      restBtn: { background:"none", border:`0.5px solid ${C.green}`, color:C.green, padding:"5px 12px", borderRadius:2, fontSize:11, fontFamily:"Georgia,serif", cursor:"pointer" },
+      delBtn:  { background:"rgba(155,42,42,0.08)", border:`0.5px solid ${C.red}`, color:C.red, padding:"5px 12px", borderRadius:2, fontSize:11, fontFamily:"Georgia,serif", cursor:"pointer" },
     };
 
     const Field = ({label,children}) => <div style={S.fg}><label style={S.lbl}>{label}</label>{children}</div>;
@@ -112,17 +113,17 @@
     const Sel   = ({val,set,opts}) => <select style={S.sel} value={val} onChange={e=>set(e.target.value)}>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
 
     function App() {
-      const [tab,    setTab]    = useState("ingredients");
-      const [ings,   setIngs]   = useState([]);
-      const [sups,   setSups]   = useState([]);
-      const [load,   setLoad]   = useState(true);
-      const [err,    setErr]    = useState(null);
-      const [search, setSrch]   = useState("");
-      const [cat,    setCat]    = useState("all");
+      const [tab,      setTab]      = useState("ingredients");
+      const [ings,     setIngs]     = useState([]);
+      const [sups,     setSups]     = useState([]);
+      const [load,     setLoad]     = useState(true);
+      const [err,      setErr]      = useState(null);
+      const [search,   setSrch]     = useState("");
+      const [cat,      setCat]      = useState("all");
       const [showArch, setShowArch] = useState(false);
-      const [ingF,   setIngF]   = useState(null);
-      const [supF,   setSupF]   = useState(null);
-      const [saving, setSaving] = useState(false);
+      const [ingF,     setIngF]     = useState(null);
+      const [supF,     setSupF]     = useState(null);
+      const [saving,   setSaving]   = useState(false);
 
       const loadAll = async () => {
         setLoad(true);
@@ -132,22 +133,20 @@
             db.get("suppliers","&is_active=eq.true"),
           ]);
           setIngs(i); setSups(s); setErr(null);
-        } catch(e) { setErr("Cannot reach database: " + e.message); }
+        } catch(e) { setErr("Cannot reach database: "+e.message); }
         setLoad(false);
       };
 
       useEffect(()=>{ loadAll(); },[]);
 
-      const filtered = ings.filter(i =>
+      const activeIngs   = ings.filter(i=>i.is_active);
+      const archivedIngs = ings.filter(i=>!i.is_active);
+
+      const filtered = ings.filter(i=>
         i.name.toLowerCase().includes(search.toLowerCase()) &&
-        (cat==="all" || i.category===cat) &&
+        (cat==="all"||i.category===cat) &&
         (showArch ? !i.is_active : i.is_active)
       );
-
-      const unarchiveIng = async id => {
-        await db.patch("ingredients", id, { is_active:true });
-        await loadAll(); setIngF(null);
-      };
 
       const saveIng = async () => {
         if (!ingF.data.name.trim()) return;
@@ -166,10 +165,15 @@
         await loadAll(); setIngF(null);
       };
 
-      const deleteIng = async id => {
-        if (!window.confirm("Permanently delete this ingredient? This cannot be undone.")) return;
-        await db.del("ingredients", id);
+      const restoreIng = async id => {
+        await db.patch("ingredients",id,{is_active:true});
         await loadAll(); setIngF(null);
+      };
+
+      const deleteIng = async id => {
+        if (!window.confirm("Permanently delete? This cannot be undone.")) return;
+        try { await db.del("ingredients",id); await loadAll(); setIngF(null); }
+        catch(e) { setErr("Delete failed: "+e.message); }
       };
 
       const saveSup = async () => {
@@ -189,10 +193,15 @@
         await loadAll(); setSupF(null);
       };
 
+      const deleteSup = async id => {
+        if (!window.confirm("Permanently delete this supplier?")) return;
+        try { await db.del("suppliers",id); await loadAll(); setSupF(null); }
+        catch(e) { setErr("Delete failed: "+e.message); }
+      };
+
       return (
         <div style={S.page}>
 
-          {/* Header */}
           <div style={S.hdr}>
             <div style={S.hN}>etto</div>
             <div style={{textAlign:"right"}}>
@@ -201,29 +210,28 @@
             </div>
           </div>
 
-          {/* Tabs */}
           <div style={S.nav}>
             {[["ingredients","Ingredienti"],["suppliers","Fornitori"]].map(([k,l])=>(
-              <button key={k} style={S.navB(tab===k)} onClick={()=>{setTab(k);setSrch("");setCat("all");}}>{l}</button>
+              <button key={k} style={S.navB(tab===k)} onClick={()=>{setTab(k);setSrch("");setCat("all");setShowArch(false);}}>{l}</button>
             ))}
           </div>
 
-          {/* Body */}
           <div style={S.body}>
             {err && <div style={S.err}>⚠ {err}</div>}
 
             {load ? (
               <div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Connecting to Etto database…</div>
+
             ) : tab==="ingredients" ? (
               <>
                 <div style={S.sBar}>
-                  <div style={S.sC}><div style={S.sN}>{ings.length}</div><div style={S.sL}>Ingredients</div></div>
-                  <div style={S.sC}><div style={S.sN}>{CATS.filter(c=>ings.some(i=>i.category===c)).length}</div><div style={S.sL}>Categories</div></div>
-                  <div style={S.sC}><div style={{...S.sN,color:C.k}}>{ings.filter(i=>parseFloat(i.yield_pct)<100).length}</div><div style={S.sL}>Yield-adjusted</div></div>
+                  <div style={S.sC}><div style={S.sN}>{activeIngs.length}</div><div style={S.sL}>Active</div></div>
+                  <div style={S.sC}><div style={S.sN}>{CATS.filter(c=>activeIngs.some(i=>i.category===c)).length}</div><div style={S.sL}>Categories</div></div>
+                  <div style={S.sC}><div style={{...S.sN,color:C.k}}>{archivedIngs.length}</div><div style={S.sL}>Archived</div></div>
                 </div>
 
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
-                  <input style={{...S.srch,marginBottom:0,flex:1,marginRight:"1rem"}} placeholder="Search ingredients…" value={search} onChange={e=>setSrch(e.target.value)}/>
+                <div style={{display:"flex",gap:"0.75rem",alignItems:"center",marginBottom:"1rem"}}>
+                  <input style={S.srch} placeholder="Search ingredients…" value={search} onChange={e=>setSrch(e.target.value)}/>
                   <button style={S.pill(showArch)} onClick={()=>setShowArch(a=>!a)}>{showArch?"Archived":"Active"}</button>
                 </div>
 
@@ -240,30 +248,33 @@
                     </thead>
                     <tbody>
                       {filtered.length===0 ? (
-                        <tr><td colSpan={6} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>No ingredients found</td></tr>
+                        <tr><td colSpan={6} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>
+                          {showArch?"No archived ingredients":"No ingredients found"}
+                        </td></tr>
                       ) : filtered.map((ing,i)=>(
-                        <tr key={ing.id} style={{cursor:"pointer",background:i%2===0?"white":C.kP}}
+                        <tr key={ing.id}
+                          style={{cursor:"pointer",background:i%2===0?"white":C.kP,opacity:ing.is_active?1:0.6}}
                           onClick={()=>setIngF({mode:"edit",data:{...ing,yield_pct:String(ing.yield_pct),reorder_threshold:String(ing.reorder_threshold)}})}>
                           <td style={{...S.td,fontWeight:600,color:C.ink}}>{ing.name}</td>
                           <td style={S.td}><span style={S.bdg(ing.category)}>{ing.category}</span></td>
                           <td style={{...S.td,color:C.inkL}}>{ing.unit}</td>
                           <td style={S.td}><span style={{color:parseFloat(ing.yield_pct)<100?C.orange:C.green,fontWeight:500}}>{ing.yield_pct}%</span></td>
                           <td style={S.td}>{ing.reorder_threshold}{ing.unit}</td>
-                          <td style={{...S.td,color:C.inkL,fontStyle:"italic",fontSize:12,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ing.notes||"—"}</td>
+                          <td style={{...S.td,color:C.inkL,fontStyle:"italic",fontSize:12,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ing.notes||"—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <p style={S.note}>{filtered.length} of {ings.length} ingredients · Tap any row to edit</p>
+                <p style={S.note}>{filtered.length} ingredients · Tap any row to edit</p>
               </>
+
             ) : (
               <>
                 <div style={{...S.sBar,gridTemplateColumns:"1fr 1fr"}}>
                   <div style={S.sC}><div style={S.sN}>{sups.length}</div><div style={S.sL}>Suppliers</div></div>
-                  <div style={S.sC}><div style={{...S.sN,color:C.k}}>{ings.length}</div><div style={S.sL}>Ingredients managed</div></div>
+                  <div style={S.sC}><div style={{...S.sN,color:C.k}}>{activeIngs.length}</div><div style={S.sL}>Ingredients</div></div>
                 </div>
-
                 <div style={{overflowX:"auto",borderRadius:2,border:`0.5px solid ${C.bd}`}}>
                   <table style={S.tbl}>
                     <thead>
@@ -290,38 +301,46 @@
             )}
           </div>
 
-          {/* FAB */}
           <button style={S.fab} onClick={()=>tab==="ingredients"?setIngF({mode:"add",data:{...EMPTY_ING}}):setSupF({mode:"add",data:{...EMPTY_SUP}})}>+</button>
 
-          {/* Ingredient Drawer */}
+          {/* ── Ingredient Drawer ── */}
           {ingF && (
             <div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setIngF(null)}>
               <div style={S.drw}>
                 <div style={S.drwH}>
                   <span>{ingF.mode==="add"?"New Ingredient":"Edit Ingredient"}</span>
                   {ingF.mode==="edit" && (
-                    <div style={{display:"flex",gap:"0.5rem"}}>
+                    <div style={S.actBtns}>
                       {ingF.data.is_active
-                        ? <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>
-                        : <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.green,borderColor:C.green}} onClick={()=>unarchiveIng(ingF.data.id)}>Restore</button>
+                        ? <button style={S.archBtn} onClick={()=>archiveIng(ingF.data.id)}>Archive</button>
+                        : <button style={S.restBtn} onClick={()=>restoreIng(ingF.data.id)}>Restore</button>
                       }
-                      <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red,background:"rgba(155,42,42,0.08)"}} onClick={()=>deleteIng(ingF.data.id)}>Delete</button>
+                      <button style={S.delBtn} onClick={()=>deleteIng(ingF.data.id)}>Delete</button>
                     </div>
                   )}
                 </div>
-                <Field label="Ingredient Name *"><Inp val={ingF.data.name} set={v=>setIngF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Alphonso Mango (raw)"/></Field>
+
+                <Field label="Ingredient Name *">
+                  <Inp val={ingF.data.name} set={v=>setIngF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Alphonso Mango (raw)"/>
+                </Field>
                 <div style={S.gr}>
                   <Field label="Category"><Sel val={ingF.data.category} set={v=>setIngF(f=>({...f,data:{...f.data,category:v}}))} opts={CATS}/></Field>
                   <Field label="Unit"><Sel val={ingF.data.unit} set={v=>setIngF(f=>({...f,data:{...f.data,unit:v}}))} opts={UNITS}/></Field>
                 </div>
                 <div style={S.gr}>
-                  <Field label="Yield % after processing"><Inp val={ingF.data.yield_pct} set={v=>setIngF(f=>({...f,data:{...f.data,yield_pct:v}}))} type="number" min="1" max="100"/></Field>
-                  <Field label={`Reorder Threshold (${ingF.data.unit})`}><Inp val={ingF.data.reorder_threshold} set={v=>setIngF(f=>({...f,data:{...f.data,reorder_threshold:v}}))} type="number" min="0"/></Field>
+                  <Field label="Yield % after processing">
+                    <Inp val={ingF.data.yield_pct} set={v=>setIngF(f=>({...f,data:{...f.data,yield_pct:v}}))} type="number" min="1" max="100"/>
+                  </Field>
+                  <Field label={`Reorder Threshold (${ingF.data.unit})`}>
+                    <Inp val={ingF.data.reorder_threshold} set={v=>setIngF(f=>({...f,data:{...f.data,reorder_threshold:v}}))} type="number" min="0"/>
+                  </Field>
                 </div>
                 {parseFloat(ingF.data.yield_pct)<100 && (
                   <div style={S.hint}>At {ingF.data.yield_pct}% yield — to get 1,000g processed you need <strong style={{color:C.ink}}>{(1000/parseFloat(ingF.data.yield_pct)*100).toFixed(0)}g raw</strong> from stock.</div>
                 )}
-                <Field label="Notes"><Inp val={ingF.data.notes||""} set={v=>setIngF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Storage, seasonality, supplier notes…"/></Field>
+                <Field label="Notes">
+                  <Inp val={ingF.data.notes||""} set={v=>setIngF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Storage, seasonality, supplier notes…"/>
+                </Field>
                 <div style={{display:"flex",gap:"1rem",justifyContent:"flex-end",marginTop:"1.25rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
                   <button style={S.btnG} onClick={()=>setIngF(null)}>Cancel</button>
                   <button style={S.btn} onClick={saveIng} disabled={saving}>{saving?"Saving…":"Save Ingredient"}</button>
@@ -330,15 +349,22 @@
             </div>
           )}
 
-          {/* Supplier Drawer */}
+          {/* ── Supplier Drawer ── */}
           {supF && (
             <div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setSupF(null)}>
               <div style={S.drw}>
                 <div style={S.drwH}>
                   <span>{supF.mode==="add"?"New Supplier":"Edit Supplier"}</span>
-                  {supF.mode==="edit" && <button style={{...S.btnG,fontSize:11,padding:"5px 12px",color:C.red,borderColor:C.red}} onClick={()=>archiveSup(supF.data.id)}>Archive</button>}
+                  {supF.mode==="edit" && (
+                    <div style={S.actBtns}>
+                      <button style={S.archBtn} onClick={()=>archiveSup(supF.data.id)}>Archive</button>
+                      <button style={S.delBtn}  onClick={()=>deleteSup(supF.data.id)}>Delete</button>
+                    </div>
+                  )}
                 </div>
-                <Field label="Supplier Name *"><Inp val={supF.data.name} set={v=>setSupF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Krishna Farms"/></Field>
+                <Field label="Supplier Name *">
+                  <Inp val={supF.data.name} set={v=>setSupF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Krishna Farms"/>
+                </Field>
                 <div style={S.gr}>
                   <Field label="Contact Person"><Inp val={supF.data.contact_name||""} set={v=>setSupF(f=>({...f,data:{...f.data,contact_name:v}}))} placeholder="Name"/></Field>
                   <Field label="Phone"><Inp val={supF.data.phone||""} set={v=>setSupF(f=>({...f,data:{...f.data,phone:v}}))} placeholder="+91…"/></Field>
