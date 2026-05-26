@@ -250,7 +250,11 @@ function App() {
     if (!recF.data.name.trim()) return;
     setSaving(true); setErr(null);
     try {
-      const d={...recF.data,base_output_g:parseFloat(recF.data.base_output_g)||1000,overrun_pct:parseFloat(recF.data.overrun_pct)||25,cup_size_ml:parseInt(recF.data.cup_size_ml)||125};
+      const base_output_g = parseFloat(recF.data.base_output_g)||1000;
+      const overrun_pct   = parseFloat(recF.data.overrun_pct)||25;
+      const cup_size_ml   = parseInt(recF.data.cup_size_ml)||125;
+      const base_mix_g    = base_output_g / (1 + overrun_pct/100);
+      const d = { ...recF.data, base_output_g, overrun_pct, cup_size_ml, base_mix_g };
       if(recF.mode==="add"){await db.post("recipes",d);}
       else{await db.patch("recipes",recF.data.id,d);if(selRec?.id===recF.data.id)setSelRec({...selRec,...d});}
       await loadBase(); setRecF(null);
@@ -276,10 +280,18 @@ function App() {
   };
 
   const saveRecIng = async () => {
-    if(!recIngF.data.ingredient_id||!recIngF.data.processed_qty_base)return;
+    if(!recIngF.data.ingredient_id){ setErr("Please select an ingredient"); return; }
+    if(!recIngF.data.processed_qty_base||parseFloat(recIngF.data.processed_qty_base)<=0){ setErr("Please enter a quantity greater than 0"); return; }
+    if(!selRec){ setErr("No recipe selected"); return; }
     setSaving(true); setErr(null);
     try{
-      const d={recipe_id:selRec.id,ingredient_id:recIngF.data.ingredient_id,processed_qty_base:parseFloat(recIngF.data.processed_qty_base)||0,notes:recIngF.data.notes||"",sort_order:recIngs.length};
+      const d={
+        recipe_id: selRec.id,
+        ingredient_id: recIngF.data.ingredient_id,
+        processed_qty_base: parseFloat(recIngF.data.processed_qty_base),
+        notes: recIngF.data.notes||"",
+        sort_order: recIngF.mode==="add" ? recIngs.length : recIngF.data.sort_order||0,
+      };
       if(recIngF.mode==="add"){await db.post("recipe_ingredients",d);}
       else{await db.patch("recipe_ingredients",recIngF.data.id,{processed_qty_base:d.processed_qty_base,notes:d.notes});}
       await loadRecDetail(selRec); setRecIngF(null);
@@ -690,8 +702,8 @@ function App() {
               <Field label="Select Ingredient *">
                 <select style={S.sel} value={recIngF.data.ingredient_id} onChange={e=>setRecIngF(f=>({...f,data:{...f.data,ingredient_id:e.target.value}}))}>
                   <option value="">— Choose ingredient —</option>
-                  {ingOpts.filter(io=>!recIngs.some(ri=>ri.ingredient_id===io.id)).map(io=>(
-                    <option key={io.id} value={io.id}>{io.name} ({io.unit})</option>
+                  {ingOpts.map(io=>(
+                    <option key={io.id} value={io.id}>{io.name} ({io.unit}){recIngs.some(ri=>ri.ingredient_id===io.id)?" ✓ added":""}</option>
                   ))}
                 </select>
               </Field>
