@@ -23,25 +23,25 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const {useState,useEffect,useRef}=React;
 
-const C = {
+const C={
   ink:"#2C1A06",inkM:"#5C3D1A",inkL:"#9B7440",
   k:"#C8A96E",kD:"#8B6914",kL:"#F5EDD8",kP:"#FAF5E9",
   cream:"#FDF8ED",bd:"rgba(200,169,110,0.35)",
   green:"#3A7A4A",orange:"#CC6600",red:"#9B2A2A",blue:"#2A5A9B"
 };
 
-const SB  = "https://bdnwpasbpvoxmffwzjeu.supabase.co";
-const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbndwYXNicHZveG1mZnd6amV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzU0MDUsImV4cCI6MjA5NTM1MTQwNX0.1anxClT_BMO8FdzDxfWX1OiJV7qmcgWD_k1aTQ7LkXg";
-const GH  = {apikey:KEY,Authorization:`Bearer ${KEY}`};
-const MH  = {...GH,"Content-Type":"application/json",Prefer:"return=representation"};
+const SB="https://bdnwpasbpvoxmffwzjeu.supabase.co";
+const KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbndwYXNicHZveG1mZnd6amV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzU0MDUsImV4cCI6MjA5NTM1MTQwNX0.1anxClT_BMO8FdzDxfWX1OiJV7qmcgWD_k1aTQ7LkXg";
+const GH={apikey:KEY,Authorization:`Bearer ${KEY}`};
+const MH={...GH,"Content-Type":"application/json",Prefer:"return=representation"};
 
-const db = {
-  get: async(t,q="")=>{const r=await fetch(`${SB}/rest/v1/${t}${q}`,{headers:GH});const d=await r.json();if(!r.ok)throw new Error(d.message||r.status);return d;},
-  post: async(t,d)=>{const r=await fetch(`${SB}/rest/v1/${t}`,{method:"POST",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
-  patch: async(t,id,d)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"PATCH",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
-  del: async(t,id)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"DELETE",headers:GH});if(!r.ok)throw new Error(r.status);},
+const db={
+  get:async(t,q="")=>{const r=await fetch(`${SB}/rest/v1/${t}${q}`,{headers:GH});const d=await r.json();if(!r.ok)throw new Error(d.message||r.status);return d;},
+  post:async(t,d)=>{const r=await fetch(`${SB}/rest/v1/${t}`,{method:"POST",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
+  patch:async(t,id,d)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"PATCH",headers:MH,body:JSON.stringify(d)});const data=await r.json();if(!r.ok)throw new Error(data.message||r.status);return data;},
+  del:async(t,id)=>{const r=await fetch(`${SB}/rest/v1/${t}?id=eq.${id}`,{method:"DELETE",headers:GH});if(!r.ok)throw new Error(r.status);},
 };
 
 const CATS=["dairy","fruit","sugar","stabiliser","flavour","oil","salt","other"];
@@ -52,34 +52,23 @@ const STS_L={draft:"Draft",trial:"In Trial",locked:"Locked ✓"};
 const BSTS_C={pending:"#2A5A9B",in_progress:"#CC6600",completed:"#3A7A4A",voided:"#9B2A2A"};
 const BSTS_L={pending:"Pending",in_progress:"In Progress",completed:"Completed ✓",voided:"Voided"};
 
-const E_ING={name:"",category:"dairy",unit:"g",yield_pct:"100",reorder_threshold:"0",notes:""};
+const E_ING={name:"",category:"dairy",unit:"g",yield_pct:"100",reorder_threshold:"0",notes:"",preferred_supplier_id:""};
 const E_SUP={name:"",contact_name:"",phone:"",email:"",address:"",notes:""};
 const E_REC={name:"",description:"",base_output_g:"1000",overrun_pct:"25",cup_size_ml:"125",status:"draft",notes:""};
 const E_RI={ingredient_id:"",processed_qty_base:"",notes:""};
 const E_ST={title:"",instruction:"",timer_min:"0",timer_sec:"0",requires_weight_check:false,requires_photo:false};
+const E_PO={supplier_id:"",ingredient_id:"",qty_received:"",cost_per_unit:"",mfg_date:"",expiry_date:"",batch_code:"",notes:""};
 
-// Helpers
-// Mix weight IS the base — overrun only affects volume/cups, not mass
-const finishedVol=(mixG,overrunPct)=>(parseFloat(mixG)||0)*(1+(parseFloat(overrunPct)||0)/100);
-const cupsFromMix=(mixG,overrunPct,cupMl)=>Math.floor(finishedVol(mixG,overrunPct)/(parseFloat(cupMl)||125));
+const finishedVol=(g,p)=>(parseFloat(g)||0)*(1+(parseFloat(p)||0)/100);
+const cupsFromMix=(g,p,c)=>Math.floor(finishedVol(g,p)/(parseFloat(c)||125));
 const rawQty=(pq,yp)=>(parseFloat(pq)||0)/((parseFloat(yp)||100)/100);
-// kept for legacy references
-const mixWt=(o,p)=>parseFloat(o)||0;
-const cups=(o,c)=>Math.floor((parseFloat(o)||0)/(parseFloat(c)||125));
 const toSecs=(m,s)=>parseInt(m||0)*60+parseInt(s||0);
-const fromSec=s=>({min:Math.floor(s/60),sec:s%60});
-const fmt=(val,unit)=>{
-  const v=parseFloat(val)||0;
-  if(unit==='g'&&v>=1000)return `${(v/1000).toFixed(2)}kg`;
-  if(unit==='ml'&&v>=1000)return `${(v/1000).toFixed(2)}L`;
-  return `${v===Math.floor(v)?v:v.toFixed(1)}${unit}`;
-};
+const fromSec=s=>({min:Math.floor((s||0)/60),sec:(s||0)%60});
+const fmt=(v,u)=>{const n=parseFloat(v)||0;if(u==='g'&&n>=1000)return`${(n/1000).toFixed(2)}kg`;if(u==='ml'&&n>=1000)return`${(n/1000).toFixed(2)}L`;return`${n===Math.floor(n)?n:n.toFixed(1)}${u}`;};
 const fmtT=s=>`${String(Math.floor((s||0)/60)).padStart(2,'0')}:${String((s||0)%60).padStart(2,'0')}`;
-const genBNo=(name,n)=>{
-  const p=name.replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase();
-  const d=new Date();
-  return `${p}-${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}-${String(n+1).padStart(3,'0')}`;
-};
+const genBNo=(name,n)=>{const p=name.replace(/[^a-zA-Z]/g,'').substring(0,3).toUpperCase();const d=new Date();return`${p}-${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}-${String(n+1).padStart(3,'0')}`;};
+const fmtDate=s=>s?new Date(s).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'—';
+const today=()=>new Date().toISOString().split('T')[0];
 
 const S={
   page:{background:C.cream,minHeight:"100vh",fontFamily:"Georgia,serif",color:C.ink,paddingBottom:76},
@@ -135,10 +124,33 @@ const S={
   tglD:on=>({position:"absolute",width:18,height:18,borderRadius:"50%",background:"white",top:3,left:on?23:3,transition:"left 0.2s"}),
   progBar:{height:5,background:C.kP,borderRadius:3,overflow:"hidden",margin:"0.5rem 0"},
   wcChip:s=>({display:"inline-block",padding:"2px 8px",borderRadius:20,fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",...(s==="met"?{background:`${C.green}15`,color:C.green,border:`0.5px solid ${C.green}`}:s==="short"?{background:`${C.red}15`,color:C.red,border:`0.5px solid ${C.red}`}:s==="surplus"?{background:`${C.blue}15`,color:C.blue,border:`0.5px solid ${C.blue}`}:{background:C.kP,color:C.inkL,border:`0.5px solid ${C.bd}`})}),
+  expWarn:{fontSize:10,color:C.red,fontStyle:"italic",marginTop:2},
+  expOk:{fontSize:10,color:C.green,fontStyle:"italic",marginTop:2},
 };
 
+// ── Shared UI ─────────────────────────────────────────
 const Field=({label,children})=><div style={S.fg}><label style={S.lbl}>{label}</label>{children}</div>;
-const Inp=({val,set,...p})=><input style={S.inp} value={val} onChange={e=>set(e.target.value)} onFocus={e=>{if(e.target.value==="0")set("");}} {...p}/>;
+
+// Fixed input — clears zero properly on focus AND backspace
+const Inp=({val,set,...p})=>{
+  const handleChange=e=>{
+    let v=e.target.value;
+    set(v);
+  };
+  const handleFocus=e=>{
+    if(e.target.value==="0"||e.target.value==="00"){
+      set("");
+    }
+  };
+  const handleKeyDown=e=>{
+    if((e.key==="Backspace"||e.key==="Delete")&&(val==="0"||val==="00")){
+      e.preventDefault();
+      set("");
+    }
+  };
+  return <input style={S.inp} value={val} onChange={handleChange} onFocus={handleFocus} onKeyDown={handleKeyDown} {...p}/>;
+};
+
 const SelEl=({val,set,opts,labels})=><select style={S.sel} value={val} onChange={e=>set(e.target.value)}>{opts.map((o,i)=><option key={o} value={o}>{labels?labels[i]:o}</option>)}</select>;
 const Toggle=({val,set,label})=>(
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0.5rem 0"}}>
@@ -147,29 +159,34 @@ const Toggle=({val,set,label})=>(
   </div>
 );
 
+// Expiry badge
+const ExpiryBadge=({date})=>{
+  if(!date)return null;
+  const days=Math.ceil((new Date(date)-new Date())/(1000*60*60*24));
+  if(days<0)return <div style={S.expWarn}>⚠ Expired {Math.abs(days)}d ago</div>;
+  if(days<=30)return <div style={S.expWarn}>⚠ Expires in {days}d</div>;
+  return <div style={S.expOk}>✓ Expires {fmtDate(date)}</div>;
+};
+
 function App(){
+  // Navigation
   const [mod,setMod]=useState("ingredients");
   const [ingTab,setIngTab]=useState("ingredienti");
   const [recView,setRecView]=useState("list");
   const [recTab,setRecTab]=useState("ingredients");
   const [batchView,setBatchView]=useState("list");
   const [batchTab,setBatchTab]=useState("pulllist");
+  const [supView,setSupView]=useState("list");
+  const [selSup,setSelSup]=useState(null);
 
-  // M1 data
+  // Data
   const [ings,setIngs]=useState([]);
   const [sups,setSups]=useState([]);
-  const [showArch,setShowArch]=useState(false);
-  const [search,setSrch]=useState("");
-  const [cat,setCat]=useState("all");
-
-  // M2 data
   const [recipes,setRecipes]=useState([]);
   const [selRec,setSelRec]=useState(null);
   const [recIngs,setRecIngs]=useState([]);
   const [recSteps,setRecSteps]=useState([]);
   const [ingOpts,setIngOpts]=useState([]);
-
-  // M3 data
   const [batches,setBatches]=useState([]);
   const [selBatch,setSelBatch]=useState(null);
   const [selBatchRec,setSelBatchRec]=useState(null);
@@ -177,11 +194,15 @@ function App(){
   const [prodSteps,setProdSteps]=useState([]);
   const [stepLogs,setStepLogs]=useState([]);
   const [wChecks,setWChecks]=useState([]);
+  const [poHistory,setPoHistory]=useState([]);
+  const [supIngs,setSupIngs]=useState([]);
+  const [showArch,setShowArch]=useState(false);
+  const [search,setSrch]=useState("");
+  const [supSearch,setSupSearch]=useState("");
+  const [supIngFilter,setSupIngFilter]=useState("all");
+  const [cat,setCat]=useState("all");
   const [timers,setTimers]=useState({});
   const [confirmWt,setConfirmWt]=useState("");
-  const [showConfirm,setShowConfirm]=useState(false);
-
-  // Common
   const [load,setLoad]=useState(true);
   const [err,setErr]=useState(null);
   const [saving,setSaving]=useState(false);
@@ -194,6 +215,7 @@ function App(){
   const [stepF,setStepF]=useState(null);
   const [newBatchF,setNewBatchF]=useState(null);
   const [wCheckF,setWCheckF]=useState(null);
+  const [poF,setPoF]=useState(null);
 
   // Timer tick
   useEffect(()=>{
@@ -210,7 +232,6 @@ function App(){
     return()=>clearInterval(iv);
   },[]);
 
-  // Poll batches every 15s when on production tab
   useEffect(()=>{
     if(mod!=="production")return;
     loadBatches();
@@ -247,12 +268,25 @@ function App(){
 
   const openRec=async rec=>{setSelRec(rec);setRecView("detail");setRecTab("ingredients");await loadRecDetail(rec);};
 
-  // ── M3 load ───────────────────────────────────────────────────
-  const loadBatches=async()=>{
+  const loadSupDetail=async sup=>{
     try{
-      const b=await db.get("production_batches","?order=created_at.desc");
-      setBatches(Array.isArray(b)?b:[]);
-    }catch(e){setErr("Batches: "+e.message);}
+      const[po,si]=await Promise.all([
+        db.get("ingredient_batches",`?supplier_id=eq.${sup.id}&order=received_at.desc&select=*,ingredients(name,unit,category)`),
+        db.get("ingredient_batches",`?supplier_id=eq.${sup.id}&select=ingredient_id,ingredients(name,unit,category)&order=ingredient_id`),
+      ]);
+      setPoHistory(Array.isArray(po)?po:[]);
+      // unique ingredients from this supplier
+      const seen=new Set();
+      const unique=(Array.isArray(si)?si:[]).filter(x=>{if(seen.has(x.ingredient_id))return false;seen.add(x.ingredient_id);return true;});
+      setSupIngs(unique);
+    }catch(e){setErr("Supplier detail: "+e.message);}
+  };
+
+  const openSup=async sup=>{setSelSup(sup);setSupView("detail");setSupIngFilter("all");await loadSupDetail(sup);};
+
+  const loadBatches=async()=>{
+    try{const b=await db.get("production_batches","?order=created_at.desc");setBatches(Array.isArray(b)?b:[]);}
+    catch(e){setErr("Batches: "+e.message);}
   };
 
   const loadBatchDetail=async batch=>{
@@ -282,163 +316,65 @@ function App(){
 
   const openBatch=async batch=>{
     setSelBatch(batch);setBatchView("detail");setBatchTab("pulllist");
-    setTimers({});setShowConfirm(false);setConfirmWt("");
+    setTimers({});setConfirmWt("");
     await loadBatchDetail(batch);
   };
 
-  const createBatch=async()=>{
-    if(!newBatchF.recipe_id||!newBatchF.target_kg)return;
-    setSaving(true);setErr(null);
-    try{
-      const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
-      const batchG=parseFloat(newBatchF.target_kg)*1000;
-      const batchNo=genBNo(rec.name,batches.length);
-      const d={batch_number:batchNo,recipe_id:newBatchF.recipe_id,target_output_g:batchG,status:"pending"};
-      const created=await db.post("production_batches",d);
-      const batch=Array.isArray(created)?created[0]:created;
-      const ri=await db.get("recipe_ingredients",`?recipe_id=eq.${newBatchF.recipe_id}&select=id,processed_qty_base,ingredient_id,ingredients(id,yield_pct,unit)&order=sort_order`);
-      const mult=batchG/(rec.base_output_g||1000);
-      for(const item of (Array.isArray(ri)?ri:[])){
-        const yp=item.ingredients?.yield_pct||100;
-        if(parseFloat(yp)<100){
-          await db.post("batch_weight_checks",{
-            batch_id:batch.id,
-            ingredient_id:item.ingredient_id,
-            target_processed_g:item.processed_qty_base*mult,
-            status:"pending",
-          });
-        }
-      }
-      await loadBatches();
-      setNewBatchF(null);
-      const fresh=await db.get("production_batches",`?id=eq.${batch.id}`);
-      await openBatch((Array.isArray(fresh)?fresh:[])[0]||batch);
-    }catch(e){setErr("Create failed: "+e.message);}
-    setSaving(false);
-  };
-
-  const startBatch=async()=>{
-    try{
-      await db.patch("production_batches",selBatch.id,{status:"in_progress"});
-      const updated={...selBatch,status:"in_progress"};
-      setSelBatch(updated);
-      setBatches(prev=>prev.map(b=>b.id===selBatch.id?updated:b));
-    }catch(e){setErr("Start failed: "+e.message);}
-  };
-
-  const isStepDone=stepId=>stepLogs.some(l=>l.step_id===stepId&&l.completed_at);
-  const isStepAvail=(step,allSteps)=>{
-    if(step.step_number===1)return true;
-    const prev=allSteps.find(s=>s.step_number===step.step_number-1);
-    return prev?isStepDone(prev.id):true;
-  };
-
-  const completeStep=async step=>{
-    if(isStepDone(step.id))return;
-    try{
-      await db.post("batch_step_logs",{batch_id:selBatch.id,step_id:step.id,completed_at:new Date().toISOString()});
-      setStepLogs(prev=>[...prev,{step_id:step.id,completed_at:new Date().toISOString()}]);
-      setTimers(prev=>{const n={...prev};if(n[step.id])n[step.id]={...n[step.id],running:false};return n;});
-    }catch(e){setErr("Step failed: "+e.message);}
-  };
-
-  const saveWeightCheck=async()=>{
-    if(!wCheckF)return;
-    setSaving(true);setErr(null);
-    try{
-      const raw=parseFloat(wCheckF.raw_weight)||0;
-      const processed=parseFloat(wCheckF.processed_weight)||0;
-      const actualYield=raw>0?(processed/raw*100):0;
-      const target=wCheckF.target_processed_g||0;
-      const status=processed>=target?"met":processed<target*0.95?"short":"surplus";
-      const d={raw_weight_g:raw,processed_weight_g:processed,actual_yield_pct:actualYield,status};
-      await db.patch("batch_weight_checks",wCheckF.id,d);
-      setWChecks(prev=>prev.map(w=>w.id===wCheckF.id?{...w,...d}:w));
-      setWCheckF(null);
-    }catch(e){setErr("Weight check failed: "+e.message);}
-    setSaving(false);
-  };
-
-  const voidBatch=async()=>{
-    if(!window.confirm("Void this batch? Inventory will not be deducted."))return;
-    try{
-      await db.patch("production_batches",selBatch.id,{status:"voided"});
-      await loadBatches();setBatchView("list");setSelBatch(null);
-    }catch(e){setErr("Void failed: "+e.message);}
-  };
-
-  const confirmBatch=async()=>{
-    if(!confirmWt||parseFloat(confirmWt)<=0){setErr("Please enter actual output weight in kg");return;}
-    setSaving(true);setErr(null);
-    try{
-      const actualG=parseFloat(confirmWt)*1000;
-      const actualVol=finishedVol(actualG,selBatchRec?.overrun_pct||0);
-      const actualCups=cupsFromMix(actualG,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125);
-      await db.patch("production_batches",selBatch.id,{
-        status:"completed",
-        actual_output_g:actualG,
-        confirmed_at:new Date().toISOString(),
-      });
-      // Inventory deduction uses scaled recipe quantities — not finished weight
-      for(const ing of scaledIngs){
-        try{
-          const stockBatches=await db.get("ingredient_batches",`?ingredient_id=eq.${ing.ingredient_id}&qty_remaining=gt.0&order=received_at`);
-          let rem=ing.raw_to_pull;
-          for(const sb of (Array.isArray(stockBatches)?stockBatches:[])){
-            if(rem<=0)break;
-            const deduct=Math.min(sb.qty_remaining,rem);
-            await db.patch("ingredient_batches",sb.id,{qty_remaining:sb.qty_remaining-deduct});
-            await db.post("inventory_deductions",{
-              batch_id:selBatch.id,ingredient_batch_id:sb.id,
-              ingredient_id:ing.ingredient_id,qty_deducted:deduct,
-              cost_per_unit_at_time:sb.cost_per_unit||0,
-              total_cost:deduct*(sb.cost_per_unit||0),
-            });
-            rem-=deduct;
-          }
-        }catch(e2){/* inventory not yet loaded - graceful */}
-      }
-      // Store batch cost record with actual cups
-      try{
-        await db.post("batch_costs",{
-          batch_id:selBatch.id,
-          raw_material_cost:0, // updated in Module 4 when stock prices are entered
-          overhead_cost:0,
-          total_batch_cost:0,
-          cups_yielded:actualCups,
-          cup_size_ml:selBatchRec?.cup_size_ml||125,
-          cost_per_cup:0,
-        });
-      }catch(e2){/* batch_costs record optional at this stage */}
-      await loadBatches();
-      setBatchView("list");setSelBatch(null);setShowConfirm(false);setConfirmWt("");
-    }catch(e){setErr("Confirm failed: "+e.message);}
-    setSaving(false);
-  };
-
-  // ── Derived ───────────────────────────────────────────────────
+  // ── M1 actions ────────────────────────────────────────────────
   const filtIngs=ings.filter(i=>i.name.toLowerCase().includes(search.toLowerCase())&&(cat==="all"||i.category===cat)&&(showArch?!i.is_active:i.is_active));
   const activeIngs=ings.filter(i=>i.is_active);
   const archivedIngs=ings.filter(i=>!i.is_active);
-  const lockedRecs=recipes.filter(r=>r.status==="locked");
-  const allStepsDone=prodSteps.length>0&&prodSteps.every(s=>isStepDone(s.id));
 
-  // ── M1 actions ────────────────────────────────────────────────
+  const filtSups=sups.filter(s=>s.name.toLowerCase().includes(supSearch.toLowerCase()));
+
   const saveIng=async()=>{
     if(!ingF.data.name.trim())return;setSaving(true);setErr(null);
-    try{const d={...ingF.data,yield_pct:parseFloat(ingF.data.yield_pct)||100,reorder_threshold:parseFloat(ingF.data.reorder_threshold)||0,is_active:true};ingF.mode==="add"?await db.post("ingredients",d):await db.patch("ingredients",ingF.data.id,d);await loadBase();setIngF(null);}
-    catch(e){setErr("Save: "+e.message);}setSaving(false);
+    try{
+      const d={...ingF.data,yield_pct:parseFloat(ingF.data.yield_pct)||100,reorder_threshold:parseFloat(ingF.data.reorder_threshold)||0,is_active:true};
+      ingF.mode==="add"?await db.post("ingredients",d):await db.patch("ingredients",ingF.data.id,d);
+      await loadBase();setIngF(null);
+    }catch(e){setErr("Save: "+e.message);}setSaving(false);
   };
   const archiveIng=async id=>{if(!window.confirm("Archive?"))return;await db.patch("ingredients",id,{is_active:false});await loadBase();setIngF(null);};
   const restoreIng=async id=>{await db.patch("ingredients",id,{is_active:true});await loadBase();setIngF(null);};
   const deleteIng=async id=>{if(!window.confirm("Permanently delete?"))return;try{await db.del("ingredients",id);await loadBase();setIngF(null);}catch(e){setErr("Delete: "+e.message);}};
+
   const saveSup=async()=>{
     if(!supF.data.name.trim())return;setSaving(true);setErr(null);
-    try{const d={...supF.data,is_active:true};supF.mode==="add"?await db.post("suppliers",d):await db.patch("suppliers",supF.data.id,d);await loadBase();setSupF(null);}
-    catch(e){setErr("Save: "+e.message);}setSaving(false);
+    try{
+      const d={...supF.data,is_active:true};
+      supF.mode==="add"?await db.post("suppliers",d):await db.patch("suppliers",supF.data.id,d);
+      await loadBase();setSupF(null);
+    }catch(e){setErr("Save: "+e.message);}setSaving(false);
   };
   const archiveSup=async id=>{if(!window.confirm("Archive?"))return;await db.patch("suppliers",id,{is_active:false});await loadBase();setSupF(null);};
-  const deleteSup=async id=>{if(!window.confirm("Delete supplier?"))return;try{await db.del("suppliers",id);await loadBase();setSupF(null);}catch(e){setErr("Delete: "+e.message);}};
+  const deleteSup=async id=>{if(!window.confirm("Delete?"))return;try{await db.del("suppliers",id);await loadBase();setSupF(null);}catch(e){setErr("Delete: "+e.message);}};
+
+  // ── Purchase Order / Stock Receive ────────────────────────────
+  const savePO=async()=>{
+    if(!poF.ingredient_id||!poF.qty_received||!poF.cost_per_unit){setErr("Select ingredient, quantity and cost");return;}
+    setSaving(true);setErr(null);
+    try{
+      const d={
+        ingredient_id:poF.ingredient_id,
+        supplier_id:poF.supplier_id||null,
+        qty_received:parseFloat(poF.qty_received),
+        qty_remaining:parseFloat(poF.qty_received),
+        cost_per_unit:parseFloat(poF.cost_per_unit),
+        batch_code:poF.batch_code||null,
+        received_at:today(),
+        expiry_date:poF.expiry_date||null,
+        notes:poF.notes||null,
+      };
+      // store mfg_date in notes if provided
+      if(poF.mfg_date)d.notes=(d.notes?d.notes+" · ":"")+"Mfg: "+poF.mfg_date;
+      await db.post("ingredient_batches",d);
+      await loadBase();
+      if(selSup)await loadSupDetail(selSup);
+      setPoF(null);
+    }catch(e){setErr("Stock receive failed: "+e.message);}
+    setSaving(false);
+  };
 
   // ── M2 actions ────────────────────────────────────────────────
   const saveRec=async()=>{
@@ -447,15 +383,16 @@ function App(){
       const base_output_g=parseFloat(recF.data.base_output_g)||1000;
       const overrun_pct=parseFloat(recF.data.overrun_pct)||25;
       const cup_size_ml=parseInt(recF.data.cup_size_ml)||125;
-      const base_mix_g=base_output_g/(1+overrun_pct/100);
+      const base_mix_g=base_output_g;
       const d={...recF.data,base_output_g,overrun_pct,cup_size_ml,base_mix_g};
       if(recF.mode==="add"){await db.post("recipes",d);}
       else{await db.patch("recipes",recF.data.id,d);if(selRec?.id===recF.data.id)setSelRec({...selRec,...d});}
       await loadBase();setRecF(null);
     }catch(e){setErr("Save: "+e.message);}setSaving(false);
   };
+
   const deleteRec=async id=>{
-    if(!window.confirm("Delete recipe and all its data?"))return;
+    if(!window.confirm("Delete recipe?"))return;
     try{
       const[ri,rs]=await Promise.all([db.get("recipe_ingredients",`?recipe_id=eq.${id}&select=id`),db.get("recipe_steps",`?recipe_id=eq.${id}&select=id`)]);
       for(const r of(Array.isArray(ri)?ri:[]))await db.del("recipe_ingredients",r.id);
@@ -463,14 +400,16 @@ function App(){
       await db.del("recipes",id);await loadBase();setRecView("list");setSelRec(null);setRecF(null);
     }catch(e){setErr("Delete: "+e.message);}
   };
+
   const lockRec=async()=>{
     if(!window.confirm("Lock this recipe? It will become read-only."))return;
     try{await db.patch("recipes",selRec.id,{status:"locked"});setSelRec({...selRec,status:"locked"});await loadBase();}
     catch(e){setErr("Lock: "+e.message);}
   };
+
   const saveRecIng=async()=>{
-    if(!recIngF.data.ingredient_id){setErr("Please select an ingredient");return;}
-    if(!recIngF.data.processed_qty_base||parseFloat(recIngF.data.processed_qty_base)<=0){setErr("Enter a quantity greater than 0");return;}
+    if(!recIngF.data.ingredient_id){setErr("Select an ingredient");return;}
+    if(!recIngF.data.processed_qty_base||parseFloat(recIngF.data.processed_qty_base)<=0){setErr("Enter quantity > 0");return;}
     if(!selRec){setErr("No recipe selected");return;}
     setSaving(true);setErr(null);
     try{
@@ -480,7 +419,9 @@ function App(){
       await loadRecDetail(selRec);setRecIngF(null);
     }catch(e){setErr("Save: "+e.message);}setSaving(false);
   };
-  const deleteRecIng=async id=>{if(!window.confirm("Remove ingredient?"))return;try{await db.del("recipe_ingredients",id);await loadRecDetail(selRec);}catch(e){setErr(e.message);}};
+
+  const deleteRecIng=async id=>{if(!window.confirm("Remove?"))return;try{await db.del("recipe_ingredients",id);await loadRecDetail(selRec);}catch(e){setErr(e.message);}};
+
   const saveStep=async()=>{
     if(!stepF.data.title.trim())return;setSaving(true);setErr(null);
     try{
@@ -492,6 +433,96 @@ function App(){
   };
   const deleteStep=async id=>{if(!window.confirm("Delete step?"))return;try{await db.del("recipe_steps",id);await loadRecDetail(selRec);}catch(e){setErr(e.message);}};
 
+  // ── M3 actions ────────────────────────────────────────────────
+  const lockedRecs=recipes.filter(r=>r.status==="locked");
+  const allStepsDone=prodSteps.length>0&&prodSteps.every(s=>stepLogs.some(l=>l.step_id===s.id&&l.completed_at));
+  const isStepDone=id=>stepLogs.some(l=>l.step_id===id&&l.completed_at);
+  const isStepAvail=(step,all)=>{if(step.step_number===1)return true;const prev=all.find(s=>s.step_number===step.step_number-1);return prev?isStepDone(prev.id):true;};
+
+  const createBatch=async()=>{
+    if(!newBatchF.recipe_id||!newBatchF.target_kg)return;
+    setSaving(true);setErr(null);
+    try{
+      const rec=recipes.find(r=>r.id===newBatchF.recipe_id);
+      const batchG=parseFloat(newBatchF.target_kg)*1000;
+      const batchNo=genBNo(rec.name,batches.length);
+      const created=await db.post("production_batches",{batch_number:batchNo,recipe_id:newBatchF.recipe_id,target_output_g:batchG,status:"pending"});
+      const batch=Array.isArray(created)?created[0]:created;
+      const ri=await db.get("recipe_ingredients",`?recipe_id=eq.${newBatchF.recipe_id}&select=id,processed_qty_base,ingredient_id,ingredients(id,yield_pct,unit)&order=sort_order`);
+      const mult=batchG/(rec.base_output_g||1000);
+      for(const item of(Array.isArray(ri)?ri:[])){
+        const yp=item.ingredients?.yield_pct||100;
+        if(parseFloat(yp)<100){
+          await db.post("batch_weight_checks",{batch_id:batch.id,ingredient_id:item.ingredient_id,target_processed_g:item.processed_qty_base*mult,status:"pending"});
+        }
+      }
+      await loadBatches();setNewBatchF(null);
+      const fresh=await db.get("production_batches",`?id=eq.${batch.id}`);
+      await openBatch((Array.isArray(fresh)?fresh:[])[0]||batch);
+    }catch(e){setErr("Create failed: "+e.message);}
+    setSaving(false);
+  };
+
+  const startBatch=async()=>{
+    try{await db.patch("production_batches",selBatch.id,{status:"in_progress"});const u={...selBatch,status:"in_progress"};setSelBatch(u);setBatches(prev=>prev.map(b=>b.id===selBatch.id?u:b));}
+    catch(e){setErr("Start failed: "+e.message);}
+  };
+
+  const completeStep=async step=>{
+    if(isStepDone(step.id))return;
+    try{
+      await db.post("batch_step_logs",{batch_id:selBatch.id,step_id:step.id,completed_at:new Date().toISOString()});
+      setStepLogs(prev=>[...prev,{step_id:step.id,completed_at:new Date().toISOString()}]);
+      setTimers(prev=>{const n={...prev};if(n[step.id])n[step.id]={...n[step.id],running:false};return n;});
+    }catch(e){setErr("Step: "+e.message);}
+  };
+
+  const saveWeightCheck=async()=>{
+    if(!wCheckF)return;setSaving(true);setErr(null);
+    try{
+      const raw=parseFloat(wCheckF.raw_weight)||0;
+      const proc=parseFloat(wCheckF.processed_weight)||0;
+      const actualYield=raw>0?(proc/raw*100):0;
+      const target=wCheckF.target_processed_g||0;
+      const status=proc>=target?"met":proc<target*0.95?"short":"surplus";
+      await db.patch("batch_weight_checks",wCheckF.id,{raw_weight_g:raw,processed_weight_g:proc,actual_yield_pct:actualYield,status});
+      setWChecks(prev=>prev.map(w=>w.id===wCheckF.id?{...w,raw_weight_g:raw,processed_weight_g:proc,actual_yield_pct:actualYield,status}:w));
+      setWCheckF(null);
+    }catch(e){setErr("Weight check: "+e.message);}setSaving(false);
+  };
+
+  const voidBatch=async()=>{
+    if(!window.confirm("Void this batch?"))return;
+    try{await db.patch("production_batches",selBatch.id,{status:"voided"});await loadBatches();setBatchView("list");setSelBatch(null);}
+    catch(e){setErr("Void: "+e.message);}
+  };
+
+  const confirmBatch=async()=>{
+    if(!confirmWt||parseFloat(confirmWt)<=0){setErr("Enter actual finished weight in kg");return;}
+    setSaving(true);setErr(null);
+    try{
+      const actualG=parseFloat(confirmWt)*1000;
+      const actualVol=finishedVol(actualG,selBatchRec?.overrun_pct||0);
+      const actualCups=cupsFromMix(actualG,selBatchRec?.overrun_pct||0,selBatchRec?.cup_size_ml||125);
+      await db.patch("production_batches",selBatch.id,{status:"completed",actual_output_g:actualG,confirmed_at:new Date().toISOString()});
+      for(const ing of scaledIngs){
+        try{
+          const sb=await db.get("ingredient_batches",`?ingredient_id=eq.${ing.ingredient_id}&qty_remaining=gt.0&order=received_at`);
+          let rem=ing.raw_to_pull;
+          for(const b of(Array.isArray(sb)?sb:[])){
+            if(rem<=0)break;
+            const deduct=Math.min(b.qty_remaining,rem);
+            await db.patch("ingredient_batches",b.id,{qty_remaining:b.qty_remaining-deduct});
+            await db.post("inventory_deductions",{batch_id:selBatch.id,ingredient_batch_id:b.id,ingredient_id:ing.ingredient_id,qty_deducted:deduct,cost_per_unit_at_time:b.cost_per_unit||0,total_cost:deduct*(b.cost_per_unit||0)});
+            rem-=deduct;
+          }
+        }catch(e2){}
+      }
+      try{await db.post("batch_costs",{batch_id:selBatch.id,raw_material_cost:0,overhead_cost:0,total_batch_cost:0,cups_yielded:actualCups,cup_size_ml:selBatchRec?.cup_size_ml||125,cost_per_cup:0});}catch(e2){}
+      await loadBatches();setBatchView("list");setSelBatch(null);setConfirmWt("");
+    }catch(e){setErr("Confirm failed: "+e.message);}setSaving(false);
+  };
+
   const MODS=[
     {key:"ingredients",label:"Ingredienti",icon:"🥛"},
     {key:"recipes",label:"Ricette",icon:"📋"},
@@ -499,6 +530,17 @@ function App(){
     {key:"inventory",label:"Inventario",icon:"📦",soon:true},
     {key:"costs",label:"Costi",icon:"₹",soon:true},
   ];
+
+  // ── Supplier avg price calc ───────────────────────────────────
+  const supAvgPrice=(supId,ingId)=>{
+    const batches2=poHistory.filter(p=>p.supplier_id===supId&&p.ingredient_id===ingId);
+    if(!batches2.length)return null;
+    const totalCost=batches2.reduce((s,b)=>s+(b.qty_received*b.cost_per_unit),0);
+    const totalQty=batches2.reduce((s,b)=>s+b.qty_received,0);
+    return totalQty>0?(totalCost/totalQty):null;
+  };
+
+  const filtPoHistory=poHistory.filter(p=>supIngFilter==="all"||p.ingredient_id===supIngFilter);
 
   return(
     <div style={S.page}>
@@ -519,12 +561,14 @@ function App(){
         <>
           <div style={S.subNav}>
             {[["ingredienti","Ingredienti"],["fornitori","Fornitori"]].map(([k,l])=>(
-              <button key={k} style={S.subB(ingTab===k)} onClick={()=>{setIngTab(k);setSrch("");setCat("all");setShowArch(false);}}>{l}</button>
+              <button key={k} style={S.subB(ingTab===k)} onClick={()=>{setIngTab(k);setSrch("");setCat("all");setShowArch(false);setSupView("list");setSelSup(null);}}>{l}</button>
             ))}
           </div>
-          <div style={S.body}>
-            {load?<div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Connecting…</div>:(
-              ingTab==="ingredienti"?(
+
+          {/* INGREDIENTI */}
+          {ingTab==="ingredienti"&&(
+            <div style={S.body}>
+              {load?<div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Connecting…</div>:(
                 <>
                   <div style={S.sBar}>
                     <div style={S.sC}><div style={S.sN}>{activeIngs.length}</div><div style={S.sL}>Active</div></div>
@@ -540,7 +584,7 @@ function App(){
                   </div>
                   <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2}}>
                     <table style={S.tbl}>
-                      <thead><tr>{["Ingredient","Category","Unit","Yield %","Reorder","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                      <thead><tr>{["Ingredient","Category","Unit","Yield %","Reorder","Expiry"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                       <tbody>
                         {filtIngs.length===0?(<tr><td colSpan={6} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>{showArch?"No archived":"No ingredients found"}</td></tr>)
                         :filtIngs.map((ing,i)=>(
@@ -551,27 +595,38 @@ function App(){
                             <td style={{...S.td,color:C.inkL}}>{ing.unit}</td>
                             <td style={S.td}><span style={{color:parseFloat(ing.yield_pct)<100?C.orange:C.green,fontWeight:500}}>{ing.yield_pct}%</span></td>
                             <td style={S.td}>{ing.reorder_threshold}{ing.unit}</td>
-                            <td style={{...S.td,color:C.inkL,fontStyle:"italic",fontSize:12,maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ing.notes||"—"}</td>
+                            <td style={S.td}><ExpiryBadge date={ing.expiry_date}/></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <p style={S.note}>{filtIngs.length} ingredients · Tap any row to edit</p>
+                  <p style={S.note}>{filtIngs.length} ingredients · Tap to edit · Expiry shown from latest stock batch</p>
                 </>
-              ):(
+              )}
+              <button style={S.fab} onClick={()=>setIngF({mode:"add",data:{...E_ING}})}>+</button>
+            </div>
+          )}
+
+          {/* FORNITORI */}
+          {ingTab==="fornitori"&&(
+            <div style={S.body}>
+              {supView==="list"?(
                 <>
                   <div style={{...S.sBar,gridTemplateColumns:"1fr 1fr"}}>
                     <div style={S.sC}><div style={S.sN}>{sups.length}</div><div style={S.sL}>Suppliers</div></div>
                     <div style={S.sC}><div style={{...S.sN,color:C.k}}>{activeIngs.length}</div><div style={S.sL}>Ingredients</div></div>
                   </div>
+                  <div style={{display:"flex",gap:"0.75rem",alignItems:"center",marginBottom:"1.25rem"}}>
+                    <input style={S.srch} placeholder="Search suppliers…" value={supSearch} onChange={e=>setSupSearch(e.target.value)}/>
+                  </div>
                   <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2}}>
                     <table style={S.tbl}>
                       <thead><tr>{["Supplier","Contact","Phone","Email","Notes"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {sups.length===0?(<tr><td colSpan={5} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>No suppliers — tap + to add</td></tr>)
-                        :sups.map((sup,i)=>(
-                          <tr key={sup.id} style={{cursor:"pointer",background:i%2===0?"white":C.kP}} onClick={()=>setSupF({mode:"edit",data:{...sup}})}>
+                        {filtSups.length===0?(<tr><td colSpan={5} style={{...S.td,textAlign:"center",fontStyle:"italic",color:C.inkL,padding:"2rem"}}>No suppliers — tap + to add</td></tr>)
+                        :filtSups.map((sup,i)=>(
+                          <tr key={sup.id} style={{cursor:"pointer",background:i%2===0?"white":C.kP}} onClick={()=>openSup(sup)}>
                             <td style={{...S.td,fontWeight:600,color:C.ink}}>{sup.name}</td>
                             <td style={S.td}>{sup.contact_name||"—"}</td>
                             <td style={S.td}>{sup.phone||"—"}</td>
@@ -582,11 +637,77 @@ function App(){
                       </tbody>
                     </table>
                   </div>
+                  <button style={S.fab} onClick={()=>setSupF({mode:"add",data:{...E_SUP}})}>+</button>
                 </>
-              )
-            )}
-          </div>
-          <button style={S.fab} onClick={()=>ingTab==="ingredienti"?setIngF({mode:"add",data:{...E_ING}}):setSupF({mode:"add",data:{...E_SUP}})}>+</button>
+              ):(
+                /* Supplier Detail */
+                <>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
+                    <button style={S.backB} onClick={()=>{setSupView("list");setSelSup(null);}}>← All Suppliers</button>
+                    <div style={{display:"flex",gap:"0.5rem"}}>
+                      <button style={S.btnSm} onClick={()=>setSupF({mode:"edit",data:{...selSup}})}>Edit</button>
+                      <button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={()=>deleteSup(selSup.id)}>Delete</button>
+                    </div>
+                  </div>
+
+                  {/* Supplier header */}
+                  <div style={{background:C.ink,borderRadius:2,padding:"1.1rem",marginBottom:"1.25rem",border:`0.5px solid ${C.k}`}}>
+                    <div style={{fontSize:19,color:C.kL,fontFamily:"Georgia,serif",marginBottom:"0.5rem"}}>{selSup?.name}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem 2rem"}}>
+                      {[["Contact",selSup?.contact_name||"—"],["Phone",selSup?.phone||"—"],["Email",selSup?.email||"—"],["Address",selSup?.address||"—"]].map(([l,v])=>(
+                        <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.15em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:1}}>{v}</div></div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Ingredients from this supplier */}
+                  {supIngs.length>0&&(
+                    <>
+                      <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,marginBottom:"0.5rem"}}>Ingredients Supplied</div>
+                      <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"1.25rem"}}>
+                        <button style={S.pill(supIngFilter==="all")} onClick={()=>setSupIngFilter("all")}>All</button>
+                        {supIngs.map(si=>(
+                          <button key={si.ingredient_id} style={S.pill(supIngFilter===si.ingredient_id)} onClick={()=>setSupIngFilter(si.ingredient_id)}>
+                            {si.ingredients?.name}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Receive stock button */}
+                  <button style={{...S.btn,marginBottom:"1.25rem",width:"100%",textAlign:"center"}} onClick={()=>setPoF({...E_PO,supplier_id:selSup.id})}>
+                    + Receive Stock from {selSup?.name}
+                  </button>
+
+                  {/* Purchase order history */}
+                  <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,marginBottom:"0.75rem"}}>Purchase Order History</div>
+                  {filtPoHistory.length===0?(
+                    <div style={{...S.info,textAlign:"center"}}>No deliveries recorded yet — tap Receive Stock to log your first delivery</div>
+                  ):filtPoHistory.map((po,i)=>(
+                    <div key={po.id} style={{background:i%2===0?"white":C.kP,border:`0.5px solid ${C.bd}`,borderRadius:2,padding:"0.9rem",marginBottom:"0.5rem"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.4rem"}}>
+                        <div style={{fontWeight:600,color:C.ink,fontSize:14}}>{po.ingredients?.name}</div>
+                        <div style={{fontSize:12,color:C.inkL}}>{fmtDate(po.received_at)}</div>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0.4rem"}}>
+                        {[
+                          ["Qty received",`${po.qty_received}${po.ingredients?.unit}`],
+                          ["Cost/unit",`₹${parseFloat(po.cost_per_unit).toFixed(2)}`],
+                          ["Remaining",`${po.qty_remaining}${po.ingredients?.unit}`],
+                        ].map(([l,v])=>(
+                          <div key={l}><div style={{fontSize:9,color:C.inkL,letterSpacing:"0.12em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.inkM,marginTop:1}}>{v}</div></div>
+                        ))}
+                      </div>
+                      {po.expiry_date&&<ExpiryBadge date={po.expiry_date}/>}
+                      {po.batch_code&&<div style={{fontSize:11,color:C.inkL,fontStyle:"italic",marginTop:4}}>Batch: {po.batch_code}</div>}
+                      {po.notes&&<div style={{fontSize:11,color:C.inkL,fontStyle:"italic",marginTop:2}}>{po.notes}</div>}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -594,36 +715,30 @@ function App(){
       {mod==="recipes"&&(
         <>
           {recView==="list"?(
-            <>
-              <div style={S.body}>
-                {load?<div style={{textAlign:"center",padding:"3rem",color:C.inkL,fontStyle:"italic"}}>Loading…</div>:(
-                  <>
-                    <div style={S.sBar}>
-                      <div style={S.sC}><div style={S.sN}>{recipes.length}</div><div style={S.sL}>Total</div></div>
-                      <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{recipes.filter(r=>r.status==="trial").length}</div><div style={S.sL}>In Trial</div></div>
-                      <div style={S.sC}><div style={{...S.sN,color:C.green}}>{recipes.filter(r=>r.status==="locked").length}</div><div style={S.sL}>Locked</div></div>
-                    </div>
-                    {recipes.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No recipes yet — tap + to create</div>)
-                    :recipes.map(rec=>(
-                      <div key={rec.id} style={S.rCard} onClick={()=>openRec(rec)}>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.5rem"}}>
-                          <div style={S.rCN}>{rec.name}</div>
-                          <span style={S.stsBdg(rec.status)}>{STS_L[rec.status]}</span>
-                        </div>
-                        {rec.description&&<div style={{...S.rCM,marginBottom:"0.5rem"}}>{rec.description}</div>}
-                        <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
-                          <span style={S.rCM}>Mix: {rec.base_output_g}g</span>
-                          <span style={S.rCM}>Volume: {finishedVol(rec.base_output_g,rec.overrun_pct).toFixed(0)}ml</span>
-                          <span style={S.rCM}>Overrun: {rec.overrun_pct}%</span>
-                          <span style={S.rCM}>Cups: {cupsFromMix(rec.base_output_g,rec.overrun_pct,rec.cup_size_ml)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
+            <div style={S.body}>
+              <div style={S.sBar}>
+                <div style={S.sC}><div style={S.sN}>{recipes.length}</div><div style={S.sL}>Total</div></div>
+                <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{recipes.filter(r=>r.status==="trial").length}</div><div style={S.sL}>In Trial</div></div>
+                <div style={S.sC}><div style={{...S.sN,color:C.green}}>{recipes.filter(r=>r.status==="locked").length}</div><div style={S.sL}>Locked</div></div>
               </div>
+              {recipes.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No recipes — tap + to create</div>)
+              :recipes.map(rec=>(
+                <div key={rec.id} style={S.rCard} onClick={()=>openRec(rec)}>
+                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"0.5rem"}}>
+                    <div style={S.rCN}>{rec.name}</div>
+                    <span style={S.stsBdg(rec.status)}>{STS_L[rec.status]}</span>
+                  </div>
+                  {rec.description&&<div style={{...S.rCM,marginBottom:"0.5rem"}}>{rec.description}</div>}
+                  <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
+                    <span style={S.rCM}>Mix: {rec.base_output_g}g</span>
+                    <span style={S.rCM}>Volume: {finishedVol(rec.base_output_g,rec.overrun_pct).toFixed(0)}ml</span>
+                    <span style={S.rCM}>Overrun: {rec.overrun_pct}%</span>
+                    <span style={S.rCM}>Cups: {cupsFromMix(rec.base_output_g,rec.overrun_pct,rec.cup_size_ml)}</span>
+                  </div>
+                </div>
+              ))}
               <button style={S.fab} onClick={()=>setRecF({mode:"add",data:{...E_REC}})}>+</button>
-            </>
+            </div>
           ):(
             <div style={S.body}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
@@ -642,13 +757,7 @@ function App(){
                   </div>
                   {selRec.description&&<div style={{fontSize:12,color:C.k,fontStyle:"italic",marginBottom:"0.75rem"}}>{selRec.description}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem 2rem"}}>
-                    {[
-                      ["Base Mix Weight",`${selRec.base_output_g}g`],
-                      ["Overrun (texture)",`${selRec.overrun_pct}%`],
-                      ["Finished Volume",`${finishedVol(selRec.base_output_g,selRec.overrun_pct).toFixed(0)}ml`],
-                      ["Cup Size",`${selRec.cup_size_ml}ml`],
-                      ["Cups per Batch",`${cupsFromMix(selRec.base_output_g,selRec.overrun_pct,selRec.cup_size_ml)}`],
-                    ].map(([l,v])=>(
+                    {[["Base Mix Weight",`${selRec.base_output_g}g`],["Overrun (texture)",`${selRec.overrun_pct}%`],["Finished Volume",`${finishedVol(selRec.base_output_g,selRec.overrun_pct).toFixed(0)}ml`],["Cup Size",`${selRec.cup_size_ml}ml`],["Cups per Batch",`${cupsFromMix(selRec.base_output_g,selRec.overrun_pct,selRec.cup_size_ml)}`]].map(([l,v])=>(
                       <div key={l}><div style={{fontSize:9,color:C.k,letterSpacing:"0.18em",textTransform:"uppercase"}}>{l}</div><div style={{fontSize:13,color:C.kL,marginTop:2}}>{v}</div></div>
                     ))}
                   </div>
@@ -664,7 +773,7 @@ function App(){
                   {recIngs.length===0?(<div style={{...S.info,textAlign:"center"}}>No ingredients — tap + Add Ingredient</div>):(
                     <div style={{overflowX:"auto",border:`0.5px solid ${C.bd}`,borderRadius:2,marginBottom:"1rem"}}>
                       <table style={S.tbl}>
-                        <thead><tr>{["Ingredient","Unit","Processed Qty","Yield","Raw to Pull",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                        <thead><tr>{["Ingredient","Unit","Processed","Yield","Raw to Pull",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                         <tbody>
                           {recIngs.map((ri,i)=>{const ing=ri.ingredients||{};const raw=rawQty(ri.processed_qty_base,ing.yield_pct||100);return(
                             <tr key={ri.id} style={{background:i%2===0?"white":C.kP}}>
@@ -679,7 +788,10 @@ function App(){
                           <tr style={{background:C.kP}}>
                             <td style={{...S.td,fontWeight:600,color:C.ink,fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em"}} colSpan={2}>Total Mix</td>
                             <td style={{...S.td,fontWeight:700,color:C.ink}}>{recIngs.reduce((s,ri)=>s+(parseFloat(ri.processed_qty_base)||0),0).toFixed(1)}g</td>
-                            <td colSpan={3} style={{...S.td,fontSize:11,color:C.inkL,fontStyle:"italic"}}>Target: {selRec?mixWt(selRec.base_output_g,selRec.overrun_pct).toFixed(1):0}g</td>
+                            <td colSpan={3} style={{...S.td,fontSize:11,color:selRec&&Math.abs(recIngs.reduce((s,ri)=>s+(parseFloat(ri.processed_qty_base)||0),0)-(selRec.base_output_g||1000))>5?C.orange:C.green,fontStyle:"italic"}}>
+                              Target: {selRec?.base_output_g||0}g
+                              {selRec&&Math.abs(recIngs.reduce((s,ri)=>s+(parseFloat(ri.processed_qty_base)||0),0)-(selRec.base_output_g||1000))>5?" ⚠ Mismatch":"  ✓"}
+                            </td>
                           </tr>
                         </tbody>
                       </table>
@@ -721,49 +833,43 @@ function App(){
         </>
       )}
 
-      {/* ═══ MODULE 3 — BATCH PRODUCTION ═════════════════════════ */}
+      {/* ═══ MODULE 3 ════════════════════════════════════════════ */}
       {mod==="production"&&(
         <>
           {batchView==="list"?(
-            <>
-              <div style={S.body}>
-                <div style={S.sBar}>
-                  <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{batches.filter(b=>b.status==="in_progress").length}</div><div style={S.sL}>In Progress</div></div>
-                  <div style={S.sC}><div style={S.sN}>{batches.filter(b=>b.status==="pending").length}</div><div style={S.sL}>Pending</div></div>
-                  <div style={S.sC}><div style={{...S.sN,color:C.green}}>{batches.filter(b=>b.status==="completed").length}</div><div style={S.sL}>Completed</div></div>
-                </div>
-                {lockedRecs.length===0&&(
-                  <div style={S.info}>⚠ No locked recipes yet. Lock a recipe in Ricette before placing a production order.</div>
-                )}
-                {batches.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No batches yet — tap + to place your first production order</div>)
-                :batches.map(b=>(
-                  <div key={b.id} style={{...S.rCard,borderLeft:`3px solid ${BSTS_C[b.status]||C.bd}`}} onClick={()=>openBatch(b)}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.4rem"}}>
-                      <div style={{fontFamily:"Georgia,serif",fontSize:15,color:C.ink,fontWeight:600}}>{b.batch_number}</div>
-                      <span style={S.bstsBdg(b.status)}>{BSTS_L[b.status]}</span>
-                    </div>
-                    <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
-                      <span style={S.rCM}>Target: {fmt(b.target_output_g,'g')}</span>
-                      {b.actual_output_g&&<span style={S.rCM}>Actual: {fmt(b.actual_output_g,'g')}</span>}
-                      <span style={{...S.rCM,fontSize:11}}>{new Date(b.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
-                    </div>
-                  </div>
-                ))}
+            <div style={S.body}>
+              <div style={S.sBar}>
+                <div style={S.sC}><div style={{...S.sN,color:C.orange}}>{batches.filter(b=>b.status==="in_progress").length}</div><div style={S.sL}>In Progress</div></div>
+                <div style={S.sC}><div style={S.sN}>{batches.filter(b=>b.status==="pending").length}</div><div style={S.sL}>Pending</div></div>
+                <div style={S.sC}><div style={{...S.sN,color:C.green}}>{batches.filter(b=>b.status==="completed").length}</div><div style={S.sL}>Completed</div></div>
               </div>
+              {lockedRecs.length===0&&<div style={S.info}>⚠ No locked recipes yet. Lock a recipe in Ricette first.</div>}
+              {batches.length===0?(<div style={{...S.info,textAlign:"center",padding:"2.5rem"}}>No batches yet — tap + to place a production order</div>)
+              :batches.map(b=>(
+                <div key={b.id} style={{...S.rCard,borderLeft:`3px solid ${BSTS_C[b.status]||C.bd}`}} onClick={()=>openBatch(b)}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.4rem"}}>
+                    <div style={{fontFamily:"Georgia,serif",fontSize:15,color:C.ink,fontWeight:600}}>{b.batch_number}</div>
+                    <span style={S.bstsBdg(b.status)}>{BSTS_L[b.status]}</span>
+                  </div>
+                  <div style={{display:"flex",gap:"1rem",flexWrap:"wrap"}}>
+                    <span style={S.rCM}>Mix: {fmt(b.target_output_g,'g')}</span>
+                    {b.actual_output_g&&<span style={S.rCM}>Finished: {fmt(b.actual_output_g,'g')}</span>}
+                    <span style={{...S.rCM,fontSize:11}}>{new Date(b.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+                  </div>
+                </div>
+              ))}
               {lockedRecs.length>0&&<button style={S.fab} onClick={()=>setNewBatchF({recipe_id:"",target_kg:"1"})}>+</button>}
-            </>
+            </div>
           ):(
-            /* Batch Detail */
             <div style={S.body}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1rem"}}>
                 <button style={S.backB} onClick={()=>{setBatchView("list");setSelBatch(null);}}>← All Batches</button>
                 <div style={{display:"flex",gap:"0.5rem"}}>
-                  {selBatch?.status==="pending"&&<button style={{...S.btnSm,color:C.green,borderColor:C.green,background:`${C.green}12`}} onClick={startBatch}>▶ Start Batch</button>}
+                  {selBatch?.status==="pending"&&<button style={{...S.btnSm,color:C.green,borderColor:C.green,background:`${C.green}12`}} onClick={startBatch}>▶ Start</button>}
                   {(selBatch?.status==="pending"||selBatch?.status==="in_progress")&&<button style={{...S.btnSm,color:C.red,borderColor:C.red}} onClick={voidBatch}>Void</button>}
                 </div>
               </div>
 
-              {/* Batch header */}
               {selBatch&&(
                 <div style={{background:C.ink,borderRadius:2,padding:"1.1rem",marginBottom:"1.25rem",border:`0.5px solid ${C.k}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:"0.75rem",marginBottom:"0.6rem",flexWrap:"wrap"}}>
@@ -789,17 +895,15 @@ function App(){
                 </div>
               )}
 
-              {/* Sub tabs */}
               <div style={{...S.subNav,marginBottom:"1.25rem"}}>
                 {[["pulllist","Pull List"],["steps",`Steps (${stepLogs.length}/${prodSteps.length})`]].map(([k,l])=>(
                   <button key={k} style={S.subB(batchTab===k)} onClick={()=>setBatchTab(k)}>{l}</button>
                 ))}
               </div>
 
-              {/* PULL LIST TAB */}
               {batchTab==="pulllist"&&(
                 <>
-                  {scaledIngs.length===0?(<div style={{...S.info,textAlign:"center"}}>Loading ingredients…</div>):(
+                  {scaledIngs.length===0?(<div style={{...S.info,textAlign:"center"}}>Loading…</div>):(
                     <>
                       {scaledIngs.map((si,i)=>{
                         const ing=si.ingredients||{};
@@ -812,25 +916,14 @@ function App(){
                               {isYield&&wc&&<span style={S.wcChip(wc.status)}>{wc.status==="pending"?"Weigh needed":wc.status}</span>}
                             </div>
                             <div style={{display:"flex",gap:"1.5rem",flexWrap:"wrap",marginBottom:"0.3rem"}}>
-                              <div>
-                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Processed needed</div>
-                                <div style={{fontSize:14,color:C.inkM,marginTop:2}}>{fmt(si.scaled_processed,ing.unit)}</div>
-                              </div>
-                              <div>
-                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Yield</div>
-                                <div style={{fontSize:14,color:isYield?C.orange:C.green,fontWeight:500,marginTop:2}}>{ing.yield_pct}%</div>
-                              </div>
-                              <div>
-                                <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Raw to pull</div>
-                                <div style={{fontSize:16,color:C.ink,fontWeight:700,marginTop:2}}>{fmt(si.raw_to_pull,ing.unit)}</div>
-                              </div>
+                              <div><div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Processed needed</div><div style={{fontSize:14,color:C.inkM,marginTop:2}}>{fmt(si.scaled_processed,ing.unit)}</div></div>
+                              <div><div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Yield</div><div style={{fontSize:14,color:isYield?C.orange:C.green,fontWeight:500,marginTop:2}}>{ing.yield_pct}%</div></div>
+                              <div><div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>Raw to pull</div><div style={{fontSize:16,color:C.ink,fontWeight:700,marginTop:2}}>{fmt(si.raw_to_pull,ing.unit)}</div></div>
                             </div>
                             {isYield&&wc&&selBatch?.status==="in_progress"&&(
                               <div style={{marginTop:"0.5rem",paddingTop:"0.5rem",borderTop:`0.5px solid ${C.bd}`}}>
                                 {wc.raw_weight_g?(
-                                  <div style={{fontSize:12,color:C.inkM,fontStyle:"italic"}}>
-                                    Pulled: {fmt(wc.raw_weight_g,ing.unit)} raw · Got: {fmt(wc.processed_weight_g||0,ing.unit)} processed · Yield: {wc.actual_yield_pct?.toFixed(1)||0}%
-                                  </div>
+                                  <div style={{fontSize:12,color:C.inkM,fontStyle:"italic"}}>Pulled: {fmt(wc.raw_weight_g,ing.unit)} · Got: {fmt(wc.processed_weight_g||0,ing.unit)} · Yield: {wc.actual_yield_pct?.toFixed(1)||0}%</div>
                                 ):(
                                   <button style={{...S.btnSm,color:C.blue,borderColor:C.blue}} onClick={()=>setWCheckF({...wc,ing_name:ing.name,ing_unit:ing.unit})}>⚖ Enter weights</button>
                                 )}
@@ -839,19 +932,20 @@ function App(){
                           </div>
                         );
                       })}
-                      <div style={{...S.info,marginTop:"1rem"}}>
-                        <strong>Total mix to prepare: {fmt(scaledIngs.reduce((s,si)=>s+si.scaled_processed,0),'g')}</strong>
-                        {" · "}Target: {fmt(selBatch?.target_output_g/(1+(selBatchRec?.overrun_pct||25)/100)||0,'g')}
+                      {/* Corrected pull list total */}
+                      <div style={{...S.info,marginTop:"0.75rem"}}>
+                        <strong>Scaled mix: {fmt(scaledIngs.reduce((s,si)=>s+si.scaled_processed,0),'g')}</strong>
+                        {" · "}Base recipe: {fmt(selBatchRec?.base_output_g||0,'g')}
+                        {" · "}Scale factor: ×{selBatch&&selBatchRec?(selBatch.target_output_g/(selBatchRec.base_output_g||1000)).toFixed(2):"—"}
                       </div>
                     </>
                   )}
                 </>
               )}
 
-              {/* STEPS TAB */}
               {batchTab==="steps"&&(
                 <>
-                  {prodSteps.length===0?(<div style={{...S.info,textAlign:"center"}}>No steps defined for this recipe</div>)
+                  {prodSteps.length===0?(<div style={{...S.info,textAlign:"center"}}>No steps defined</div>)
                   :prodSteps.map(step=>{
                     const done=isStepDone(step.id);
                     const avail=selBatch?.status==="in_progress"&&isStepAvail(step,prodSteps);
@@ -873,18 +967,12 @@ function App(){
                                   {timer?fmtT(timer.remaining):`${Math.floor(step.timer_seconds/60)}:${String(step.timer_seconds%60).padStart(2,'0')}`}
                                 </div>
                                 {(!timer||!timer.running)&&timer?.remaining!==0&&(
-                                  <button style={{...S.btnSm,width:"100%",textAlign:"center",padding:"8px"}} onClick={()=>setTimers(t=>({...t,[step.id]:{remaining:step.timer_seconds,running:true}}))}>
-                                    ▶ Start Timer
-                                  </button>
+                                  <button style={{...S.btnSm,width:"100%",textAlign:"center",padding:"8px"}} onClick={()=>setTimers(t=>({...t,[step.id]:{remaining:step.timer_seconds,running:true}}))}>▶ Start Timer</button>
                                 )}
-                                {timer?.remaining===0&&<div style={{textAlign:"center",fontSize:12,color:C.red,fontStyle:"italic"}}>⏰ Timer complete — mark step done</div>}
+                                {timer?.remaining===0&&<div style={{textAlign:"center",fontSize:12,color:C.red,fontStyle:"italic"}}>⏰ Timer complete</div>}
                               </div>
                             )}
-                            {avail&&!done&&(
-                              <button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:13}} onClick={()=>completeStep(step)}>
-                                ✓ Mark Step Complete
-                              </button>
-                            )}
+                            {avail&&!done&&<button style={{...S.btnGreen,width:"100%",textAlign:"center",fontSize:13}} onClick={()=>completeStep(step)}>✓ Mark Step Complete</button>}
                             {done&&<div style={{fontSize:12,color:C.green,fontStyle:"italic"}}>✓ Completed</div>}
                             {!avail&&!done&&<div style={{fontSize:11,color:C.inkL,fontStyle:"italic"}}>Complete step {step.step_number-1} first</div>}
                           </div>
@@ -893,7 +981,6 @@ function App(){
                     );
                   })}
 
-                  {/* Batch Confirmation */}
                   {allStepsDone&&selBatch?.status==="in_progress"&&(
                     <div style={{background:`${C.green}08`,border:`1.5px solid ${C.green}`,borderRadius:2,padding:"1.25rem",marginTop:"1rem"}}>
                       <div style={{fontFamily:"Georgia,serif",fontSize:16,color:C.green,marginBottom:"0.75rem"}}>✓ All Steps Complete — Confirm Batch</div>
@@ -907,10 +994,7 @@ function App(){
                         return(
                           <div style={{...S.info,marginBottom:"1rem"}}>
                             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem 1.5rem"}}>
-                              {[
-                                ["Finished volume",`${finVol.toFixed(0)}ml`],
-                                ["Cups produced",`${finCups}`],
-                              ].map(([l,v])=>(
+                              {[["Finished volume",`${finVol.toFixed(0)}ml`],["Cups produced",`${finCups}`]].map(([l,v])=>(
                                 <div key={l}>
                                   <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>{l}</div>
                                   <div style={{fontSize:18,color:C.ink,fontWeight:700,marginTop:1}}>{v}</div>
@@ -932,7 +1016,6 @@ function App(){
         </>
       )}
 
-      {/* ═══ COMING SOON ═════════════════════════════════════════ */}
       {["inventory","costs"].includes(mod)&&(
         <div style={{textAlign:"center",padding:"5rem 2rem",color:C.inkL}}>
           <div style={{fontSize:44,marginBottom:"1rem"}}>{mod==="inventory"?"📦":"₹"}</div>
@@ -941,7 +1024,6 @@ function App(){
         </div>
       )}
 
-      {/* Bottom Nav */}
       <div style={S.modNav}>
         {MODS.map(m=>(
           <button key={m.key} style={S.modB(mod===m.key,m.soon)} onClick={()=>!m.soon&&setMod(m.key)} disabled={m.soon}>
@@ -974,6 +1056,12 @@ function App(){
             <Field label={`Reorder (${ingF.data.unit})`}><Inp val={ingF.data.reorder_threshold} set={v=>setIngF(f=>({...f,data:{...f.data,reorder_threshold:v}}))} type="number" min="0"/></Field>
           </div>
           {parseFloat(ingF.data.yield_pct)<100&&<div style={S.info}>At {ingF.data.yield_pct}% — 1,000g processed needs <strong style={{color:C.ink}}>{(1000/(parseFloat(ingF.data.yield_pct)/100)).toFixed(0)}g raw</strong></div>}
+          <Field label="Preferred Supplier">
+            <select style={S.sel} value={ingF.data.preferred_supplier_id||""} onChange={e=>setIngF(f=>({...f,data:{...f.data,preferred_supplier_id:e.target.value}}))}>
+              <option value="">— None —</option>
+              {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
           <Field label="Notes"><Inp val={ingF.data.notes||""} set={v=>setIngF(f=>({...f,data:{...f.data,notes:v}}))} placeholder="Storage, seasonality…"/></Field>
           <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
             <button style={S.btnG} onClick={()=>setIngF(null)}>Cancel</button>
@@ -1004,6 +1092,56 @@ function App(){
         </div>
       </div>)}
 
+      {/* Receive Stock / Purchase Order */}
+      {poF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setPoF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>Receive Stock</span></div>
+          <Field label="Supplier">
+            <select style={S.sel} value={poF.supplier_id||""} onChange={e=>setPoF(f=>({...f,supplier_id:e.target.value}))}>
+              <option value="">— Select supplier —</option>
+              {sups.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Ingredient *">
+            <select style={S.sel} value={poF.ingredient_id} onChange={e=>setPoF(f=>({...f,ingredient_id:e.target.value}))}>
+              <option value="">— Select ingredient —</option>
+              {ingOpts.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+            </select>
+          </Field>
+          <div style={S.gr}>
+            <Field label={`Quantity received (${ingOpts.find(i=>i.id===poF.ingredient_id)?.unit||'unit'})`}>
+              <Inp val={poF.qty_received} set={v=>setPoF(f=>({...f,qty_received:v}))} type="number" min="0" step="0.1" placeholder="e.g. 20"/>
+            </Field>
+            <Field label="Cost per unit (₹)">
+              <Inp val={poF.cost_per_unit} set={v=>setPoF(f=>({...f,cost_per_unit:v}))} type="number" min="0" step="0.01" placeholder="e.g. 80"/>
+            </Field>
+          </div>
+          {poF.qty_received&&poF.cost_per_unit&&(
+            <div style={{...S.info,marginBottom:"1rem"}}>
+              Total value: <strong style={{color:C.ink}}>₹{(parseFloat(poF.qty_received)*parseFloat(poF.cost_per_unit)).toFixed(2)}</strong>
+            </div>
+          )}
+          <div style={S.gr}>
+            <Field label="Manufacturing Date">
+              <input style={S.inp} type="date" value={poF.mfg_date||""} onChange={e=>setPoF(f=>({...f,mfg_date:e.target.value}))} max={today()}/>
+            </Field>
+            <Field label="Expiry Date">
+              <input style={S.inp} type="date" value={poF.expiry_date||""} onChange={e=>setPoF(f=>({...f,expiry_date:e.target.value}))} min={today()}/>
+            </Field>
+          </div>
+          <Field label="Batch / Invoice Reference">
+            <Inp val={poF.batch_code||""} set={v=>setPoF(f=>({...f,batch_code:v}))} placeholder="Invoice no. or batch code"/>
+          </Field>
+          <Field label="Notes">
+            <Inp val={poF.notes||""} set={v=>setPoF(f=>({...f,notes:v}))} placeholder="Any notes about this delivery…"/>
+          </Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setPoF(null)}>Cancel</button>
+            <button style={S.btn} onClick={savePO} disabled={saving}>{saving?"Saving…":"Receive Stock"}</button>
+          </div>
+        </div>
+      </div>)}
+
       {/* Recipe */}
       {recF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setRecF(null)}>
         <div style={S.drw}>
@@ -1013,10 +1151,8 @@ function App(){
           </div>
           <Field label="Recipe Name *"><Inp val={recF.data.name} set={v=>setRecF(f=>({...f,data:{...f.data,name:v}}))} placeholder="e.g. Smoked Mango + Saffron"/></Field>
           <Field label="Description"><Inp val={recF.data.description||""} set={v=>setRecF(f=>({...f,data:{...f.data,description:v}}))} placeholder="Short description…"/></Field>
-          <div style={S.gr}>
-            <Field label="Target Output (g)"><Inp val={recF.data.base_output_g} set={v=>setRecF(f=>({...f,data:{...f.data,base_output_g:v}}))} type="number" min="100"/></Field>
-            <Field label="Overrun %"><Inp val={recF.data.overrun_pct} set={v=>setRecF(f=>({...f,data:{...f.data,overrun_pct:v}}))} type="number" min="0" max="100"/></Field>
-          </div>
+          <Field label="Base Mix Weight (g) *"><Inp val={recF.data.base_output_g} set={v=>setRecF(f=>({...f,data:{...f.data,base_output_g:v}}))} type="number" min="100"/></Field>
+          <Field label="Overrun % (texture reference)"><Inp val={recF.data.overrun_pct} set={v=>setRecF(f=>({...f,data:{...f.data,overrun_pct:v}}))} type="number" min="0" max="100"/></Field>
           <div style={S.info}>
             Mix in: <strong style={{color:C.ink}}>{parseFloat(recF.data.base_output_g)||0}g</strong>
             {" → "}Finished volume: <strong style={{color:C.ink}}>{finishedVol(recF.data.base_output_g,recF.data.overrun_pct).toFixed(0)}ml</strong>
@@ -1072,10 +1208,10 @@ function App(){
           <Field label="Title *"><Inp val={stepF.data.title} set={v=>setStepF(f=>({...f,data:{...f.data,title:v}}))} placeholder="e.g. Bloom the saffron"/></Field>
           <Field label="Instruction"><textarea style={S.txta} value={stepF.data.instruction||""} onChange={e=>setStepF(f=>({...f,data:{...f.data,instruction:e.target.value}}))} placeholder="Detailed instruction…"/></Field>
           <div style={S.fg}>
-            <label style={S.lbl}>Timer (0:0 if none)</label>
+            <label style={S.lbl}>Timer (leave 0 if no timer needed)</label>
             <div style={S.gr}>
-              <Field label="Minutes"><Inp val={stepF.data.timer_min||"0"} set={v=>setStepF(f=>({...f,data:{...f.data,timer_min:v}}))} type="number" min="0"/></Field>
-              <Field label="Seconds"><Inp val={stepF.data.timer_sec||"0"} set={v=>setStepF(f=>({...f,data:{...f.data,timer_sec:v}}))} type="number" min="0" max="59"/></Field>
+              <Field label="Minutes"><Inp val={stepF.data.timer_min} set={v=>setStepF(f=>({...f,data:{...f.data,timer_min:v}}))} type="number" min="0"/></Field>
+              <Field label="Seconds"><Inp val={stepF.data.timer_sec} set={v=>setStepF(f=>({...f,data:{...f.data,timer_sec:v}}))} type="number" min="0" max="59"/></Field>
             </div>
           </div>
           <Toggle val={stepF.data.requires_weight_check} set={v=>setStepF(f=>({...f,data:{...f.data,requires_weight_check:v}}))} label="Requires weight check"/>
@@ -1093,11 +1229,11 @@ function App(){
           <div style={S.drwH}><span>New Production Order</span></div>
           <Field label="Select Recipe (locked only) *">
             <select style={S.sel} value={newBatchF.recipe_id} onChange={e=>setNewBatchF(f=>({...f,recipe_id:e.target.value}))}>
-              <option value="">— Select a locked recipe —</option>
+              <option value="">— Select locked recipe —</option>
               {lockedRecs.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </Field>
-          <Field label="Desired Output (kg)">
+          <Field label="Desired Mix Weight (kg)">
             <Inp val={newBatchF.target_kg} set={v=>setNewBatchF(f=>({...f,target_kg:v}))} type="number" min="0.1" step="0.1" placeholder="e.g. 3"/>
           </Field>
           {newBatchF.recipe_id&&newBatchF.target_kg&&(()=>{
@@ -1110,12 +1246,7 @@ function App(){
             return(
               <div style={S.info}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem 1.5rem"}}>
-                  {[
-                    ["Mix to prepare",`${batchG.toFixed(0)}g`],
-                    ["Finished volume",`${batchVol.toFixed(0)}ml`],
-                    ["Scale factor",`×${mult.toFixed(2)} of base`],
-                    ["Total cups",`${totalCups} × ${rec.cup_size_ml}ml`],
-                  ].map(([l,v])=>(
+                  {[["Mix to prepare",`${batchG.toFixed(0)}g`],["Finished volume",`${batchVol.toFixed(0)}ml`],["Scale factor",`×${mult.toFixed(2)}`],["Cups expected",`${totalCups} × ${rec.cup_size_ml}ml`]].map(([l,v])=>(
                     <div key={l}>
                       <div style={{fontSize:9,color:C.inkL,letterSpacing:"0.15em",textTransform:"uppercase"}}>{l}</div>
                       <div style={{fontSize:15,color:C.ink,fontWeight:600,marginTop:1}}>{v}</div>
@@ -1136,11 +1267,11 @@ function App(){
       {wCheckF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setWCheckF(null)}>
         <div style={S.drw}>
           <div style={S.drwH}><span>Weight Check — {wCheckF.ing_name}</span></div>
-          <div style={S.info}>Target processed weight: <strong style={{color:C.ink}}>{fmt(wCheckF.target_processed_g,wCheckF.ing_unit)}</strong></div>
-          <Field label={`Raw weight pulled from stock (${wCheckF.ing_unit})`}>
+          <div style={S.info}>Target processed weight: <strong style={{color:C.ink}}>{fmt(wCheckF.target_processed_g,wCheckF.ing_unit||'g')}</strong></div>
+          <Field label={`Raw weight pulled from stock (${wCheckF.ing_unit||'g'})`}>
             <Inp val={wCheckF.raw_weight||""} set={v=>setWCheckF(f=>({...f,raw_weight:v}))} type="number" min="0" step="0.1" placeholder="Weight before processing"/>
           </Field>
-          <Field label={`Processed weight after preparation (${wCheckF.ing_unit})`}>
+          <Field label={`Processed weight after preparation (${wCheckF.ing_unit||'g'})`}>
             <Inp val={wCheckF.processed_weight||""} set={v=>setWCheckF(f=>({...f,processed_weight:v}))} type="number" min="0" step="0.1" placeholder="Weight after processing"/>
           </Field>
           {wCheckF.raw_weight&&wCheckF.processed_weight&&(()=>{
@@ -1152,13 +1283,13 @@ function App(){
             return(
               <div style={{...S.info,background:diff>=0?`${C.green}10`:`${C.red}10`,border:`0.5px solid ${diff>=0?C.green:C.red}`}}>
                 Actual yield: <strong style={{color:C.ink}}>{yld.toFixed(1)}%</strong><br/>
-                {diff>=0?<span style={{color:C.green}}>✓ Target met — {fmt(Math.abs(diff),wCheckF.ing_unit)} surplus</span>:<span style={{color:C.red}}>⚠ Short by {fmt(Math.abs(diff),wCheckF.ing_unit)} — top up or proceed?</span>}
+                {diff>=0?<span style={{color:C.green}}>✓ Target met — {fmt(Math.abs(diff),wCheckF.ing_unit||'g')} surplus</span>:<span style={{color:C.red}}>⚠ Short by {fmt(Math.abs(diff),wCheckF.ing_unit||'g')}</span>}
               </div>
             );
           })()}
           <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
             <button style={S.btnG} onClick={()=>setWCheckF(null)}>Cancel</button>
-            <button style={S.btn} onClick={saveWeightCheck} disabled={saving}>{saving?"Saving…":"Save Weight Check"}</button>
+            <button style={S.btn} onClick={saveWeightCheck} disabled={saving}>{saving?"Saving…":"Save"}</button>
           </div>
         </div>
       </div>)}
