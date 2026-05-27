@@ -215,7 +215,7 @@ function App(){
   const [stepF,setStepF]=useState(null);
   const [newBatchF,setNewBatchF]=useState(null);
   const [wCheckF,setWCheckF]=useState(null);
-  const [poF,setPoF]=useState(null);
+  const [poEditF,setPoEditF]=useState(null);
 
   // Timer tick
   useEffect(()=>{
@@ -351,7 +351,32 @@ function App(){
   const deleteSup=async id=>{if(!window.confirm("Delete?"))return;try{await db.del("suppliers",id);await loadBase();setSupF(null);}catch(e){setErr("Delete: "+e.message);}};
 
   // ── Purchase Order / Stock Receive ────────────────────────────
-  const savePO=async()=>{
+  const [poF,setPoF]=useState(null);
+
+  const savePOEdit=async()=>{
+    if(!poEditF)return;setSaving(true);setErr(null);
+    try{
+      const d={
+        qty_received:parseFloat(poEditF.qty_received),
+        qty_remaining:parseFloat(poEditF.qty_remaining),
+        cost_per_unit:parseFloat(poEditF.cost_per_unit),
+        expiry_date:poEditF.expiry_date||null,
+        batch_code:poEditF.batch_code||null,
+        notes:poEditF.notes||null,
+      };
+      if(poEditF.mfg_date)d.notes=(d.notes?d.notes+" · ":"")+"Mfg: "+poEditF.mfg_date;
+      await db.patch("ingredient_batches",poEditF.id,d);
+      if(selSup)await loadSupDetail(selSup);
+      setPoEditF(null);
+    }catch(e){setErr("Edit failed: "+e.message);}
+    setSaving(false);
+  };
+
+  const deletePO=async id=>{
+    if(!window.confirm("Delete this purchase order?"))return;
+    try{await db.del("ingredient_batches",id);if(selSup)await loadSupDetail(selSup);}
+    catch(e){setErr("Delete: "+e.message);}
+  };
     if(!poF.ingredient_id||!poF.qty_received||!poF.cost_per_unit){setErr("Select ingredient, quantity and cost");return;}
     setSaving(true);setErr(null);
     try{
@@ -660,17 +685,35 @@ function App(){
                     </div>
                   </div>
 
-                  {/* Ingredients from this supplier */}
+                  {/* Ingredients from this supplier with avg price */}
                   {supIngs.length>0&&(
                     <>
-                      <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,marginBottom:"0.5rem"}}>Ingredients Supplied</div>
-                      <div style={{display:"flex",gap:"0.5rem",flexWrap:"wrap",marginBottom:"1.25rem"}}>
-                        <button style={S.pill(supIngFilter==="all")} onClick={()=>setSupIngFilter("all")}>All</button>
-                        {supIngs.map(si=>(
-                          <button key={si.ingredient_id} style={S.pill(supIngFilter===si.ingredient_id)} onClick={()=>setSupIngFilter(si.ingredient_id)}>
-                            {si.ingredients?.name}
-                          </button>
-                        ))}
+                      <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,marginBottom:"0.75rem"}}>Ingredients Supplied</div>
+                      <div style={{border:`0.5px solid ${C.bd}`,borderRadius:2,marginBottom:"1.25rem",overflow:"hidden"}}>
+                        <table style={S.tbl}>
+                          <thead><tr>{["Ingredient","Total Received","Avg Price / unit","Filter"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {supIngs.map((si,i)=>{
+                              const ingPOs=poHistory.filter(p=>p.ingredient_id===si.ingredient_id);
+                              const totalQty=ingPOs.reduce((s,p)=>s+p.qty_received,0);
+                              const totalCost=ingPOs.reduce((s,p)=>s+(p.qty_received*p.cost_per_unit),0);
+                              const avgPrice=totalQty>0?(totalCost/totalQty):0;
+                              const unit=si.ingredients?.unit||'g';
+                              return(
+                                <tr key={si.ingredient_id} style={{background:i%2===0?"white":C.kP}}>
+                                  <td style={{...S.td,fontWeight:600,color:C.ink}}>{si.ingredients?.name}</td>
+                                  <td style={S.td}>{fmt(totalQty,unit)}</td>
+                                  <td style={{...S.td,color:C.green,fontWeight:500}}>₹{avgPrice.toFixed(2)}/{unit}</td>
+                                  <td style={S.td}>
+                                    <button style={S.pill(supIngFilter===si.ingredient_id)} onClick={()=>setSupIngFilter(f=>f===si.ingredient_id?"all":si.ingredient_id)}>
+                                      {supIngFilter===si.ingredient_id?"Clear":"Filter"}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </>
                   )}
@@ -683,12 +726,16 @@ function App(){
                   {/* Purchase order history */}
                   <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:C.inkL,marginBottom:"0.75rem"}}>Purchase Order History</div>
                   {filtPoHistory.length===0?(
-                    <div style={{...S.info,textAlign:"center"}}>No deliveries recorded yet — tap Receive Stock to log your first delivery</div>
+                    <div style={{...S.info,textAlign:"center"}}>No deliveries recorded yet</div>
                   ):filtPoHistory.map((po,i)=>(
                     <div key={po.id} style={{background:i%2===0?"white":C.kP,border:`0.5px solid ${C.bd}`,borderRadius:2,padding:"0.9rem",marginBottom:"0.5rem"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.4rem"}}>
                         <div style={{fontWeight:600,color:C.ink,fontSize:14}}>{po.ingredients?.name}</div>
-                        <div style={{fontSize:12,color:C.inkL}}>{fmtDate(po.received_at)}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
+                          <div style={{fontSize:12,color:C.inkL}}>{fmtDate(po.received_at)}</div>
+                          <button style={{...S.btnSm,fontSize:10}} onClick={()=>setPoEditF({...po,mfg_date:"",qty_received:String(po.qty_received),qty_remaining:String(po.qty_remaining),cost_per_unit:String(po.cost_per_unit)})}>Edit</button>
+                          <button style={{...S.btnSm,color:C.red,borderColor:C.red,fontSize:10}} onClick={()=>deletePO(po.id)}>✕</button>
+                        </div>
                       </div>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0.4rem"}}>
                         {[
@@ -1290,6 +1337,43 @@ function App(){
           <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
             <button style={S.btnG} onClick={()=>setWCheckF(null)}>Cancel</button>
             <button style={S.btn} onClick={saveWeightCheck} disabled={saving}>{saving?"Saving…":"Save"}</button>
+          </div>
+        </div>
+      </div>)}
+
+      {/* PO Edit Drawer */}
+      {poEditF&&(<div style={S.ovr} onClick={e=>e.target===e.currentTarget&&setPoEditF(null)}>
+        <div style={S.drw}>
+          <div style={S.drwH}><span>Edit Purchase Order</span></div>
+          <div style={{...S.info,marginBottom:"1rem"}}><strong>{poEditF.ingredients?.name}</strong> · Received {fmtDate(poEditF.received_at)}</div>
+          <div style={S.gr}>
+            <Field label="Qty Received">
+              <Inp val={poEditF.qty_received} set={v=>setPoEditF(f=>({...f,qty_received:v}))} type="number" min="0" step="0.1"/>
+            </Field>
+            <Field label="Qty Remaining">
+              <Inp val={poEditF.qty_remaining} set={v=>setPoEditF(f=>({...f,qty_remaining:v}))} type="number" min="0" step="0.1"/>
+            </Field>
+          </div>
+          <Field label="Cost per unit (₹)">
+            <Inp val={poEditF.cost_per_unit} set={v=>setPoEditF(f=>({...f,cost_per_unit:v}))} type="number" min="0" step="0.01"/>
+          </Field>
+          <div style={S.gr}>
+            <Field label="Manufacturing Date">
+              <input style={S.inp} type="date" value={poEditF.mfg_date||""} onChange={e=>setPoEditF(f=>({...f,mfg_date:e.target.value}))}/>
+            </Field>
+            <Field label="Expiry Date">
+              <input style={S.inp} type="date" value={poEditF.expiry_date||""} onChange={e=>setPoEditF(f=>({...f,expiry_date:e.target.value}))}/>
+            </Field>
+          </div>
+          <Field label="Batch / Invoice Reference">
+            <Inp val={poEditF.batch_code||""} set={v=>setPoEditF(f=>({...f,batch_code:v}))} placeholder="Invoice no. or batch code"/>
+          </Field>
+          <Field label="Notes">
+            <Inp val={poEditF.notes||""} set={v=>setPoEditF(f=>({...f,notes:v}))} placeholder="Notes…"/>
+          </Field>
+          <div style={{display:"flex",gap:"0.75rem",justifyContent:"flex-end",marginTop:"1rem",paddingTop:"1rem",borderTop:`0.5px solid ${C.bd}`}}>
+            <button style={S.btnG} onClick={()=>setPoEditF(null)}>Cancel</button>
+            <button style={S.btn} onClick={savePOEdit} disabled={saving}>{saving?"Saving…":"Save Changes"}</button>
           </div>
         </div>
       </div>)}
